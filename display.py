@@ -2,6 +2,7 @@
 
 import tkinter as tk
 import darkhex
+import util
 
 MAX_ROWS = 11
 MAX_COLS = 11
@@ -16,13 +17,6 @@ class DisplayWindow(tk.Tk):
     
     Handles all game logic through the abstract dark hex class
     """
-
-    # maps letters to colours for colouring in board
-    colour_map = {
-        "w": "white",
-        "b": "black",
-        "e": "grey"
-    }
 
     def __init__(self):
         super().__init__()
@@ -141,11 +135,13 @@ class DisplayWindow(tk.Tk):
         frm_hex.pack()
         for y, row in enumerate(board):
             for x, cell in enumerate(row):
+                if x == 0 or x == self.rows - 1 or y == 0 or y == self.cols - 1:
+                    continue
                 button = tk.Button(
                     frm_hex,
                     text=f"{x}, {y}",
                     anchor="center",
-                    bg=self.colour_map[cell],
+                    bg=util.colour_map[cell],
                     width=5,
                     height=5,
                     command=self.play_move(x,y)
@@ -173,7 +169,12 @@ class DisplayWindow(tk.Tk):
                 pass
             case "placed":
                 # update cell colour, swap turns
-                pass
+                try:
+                    btn = self.hexes[(x,y)]
+                    colour = self.game.board[y][x]
+                    btn.bg=util.colour_map[util.swap_colour(colour)]
+                except KeyError:
+                    pass
             case "black_win":
                 # finish game with black winning
                 pass

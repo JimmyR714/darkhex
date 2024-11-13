@@ -1,6 +1,7 @@
 """Module containing the game class that allows dark hex to run with multiple board sizes"""
 
 from scipy.cluster.hierarchy import DisjointSet
+import util
 
 class AbstractDarkHex:
     """
@@ -28,7 +29,7 @@ class AbstractDarkHex:
 
         self.reset_board()  # set starting state of board and components
 
-    def move(self, x : int, y : int, colour : str):
+    def move(self, x : int, y : int, colour : str) -> str:
         """
         Attempt to place a piece of a given colour into a given cell
         Parameters:
@@ -36,7 +37,8 @@ class AbstractDarkHex:
             x: The row to insert on, with 1 being at the top
             y: The column to insert on, with 1 being at the left
         Returns:
-            "win" if the cell is placed and this wins the game for that player
+            "black_win" if the cell is placed and this wins the game for black
+            "white_win" if the cell is placed and this wins the game for white
             "placed" if the cell is placed and the game continues
             "full" if the cell is occupied
         """
@@ -52,7 +54,7 @@ class AbstractDarkHex:
             # update global board and our view
             self.board[x][y] = colour
             self._get_board(colour)[x][y] = colour
-            self.turn = self._swap_colour(colour)  # swap turn
+            self.turn = util.swap_colour(colour)  # swap turn
             self.update_components(x, y, colour)  # update components
             win_check = self.win_check()
             if win_check != "none":
@@ -61,7 +63,7 @@ class AbstractDarkHex:
                 return "placed"
 
 
-    def win_check(self):
+    def win_check(self) -> str:
         """
         Check if the board is in a winning position for some player.
         Returns:
@@ -77,7 +79,7 @@ class AbstractDarkHex:
         else:
             return "none"
 
-    def update_components(self, x : int, y : int, colour : str):
+    def update_components(self, x : int, y : int, colour : str) -> None:
         """
         Update the connected components of the given colour to include the new cell (x,y)
         """
@@ -99,7 +101,7 @@ class AbstractDarkHex:
                 components.merge((x,y),cell)
 
 
-    def reset_board(self):
+    def reset_board(self) -> None:
         """
         Restart the game with the same board dimensions
         """
@@ -129,7 +131,7 @@ class AbstractDarkHex:
             self.white_components.merge((self.cols+1,0), (self.cols+1, y))
 
 
-    def _create_board(self):
+    def _create_board(self) -> list[list[str]]:
         """
         Create a starting board of size cols+1 x rows+1
         The top and bottom rows are black, the left and right columns are white
@@ -140,7 +142,7 @@ class AbstractDarkHex:
         ] + [row]
 
 
-    def _get_board(self, colour : str):
+    def _get_board(self, colour : str) -> list[list[str]]:
         """
         Returns the board for a given colour
         """
@@ -151,16 +153,3 @@ class AbstractDarkHex:
                 return self.white_board
             case _:
                 raise ValueError("Invalid colour given to _get_board")
-
-
-    def _swap_colour(self, colour : str):
-        """
-        Returns the opposite colour to what has been input
-        """
-        match colour:
-            case "b":
-                return "w"
-            case "w":
-                return "b"
-            case _:
-                raise ValueError("Invalid colour given to _swap_colour")
