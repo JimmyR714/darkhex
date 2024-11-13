@@ -1,7 +1,8 @@
 """Module containing the game class that allows dark hex to run with multiple board sizes"""
+
 from scipy.cluster.hierarchy import DisjointSet
 
-class Game:
+class AbstractDarkHex:
     """
     Class that can run a game of Dark Hex. 
     
@@ -14,7 +15,7 @@ class Game:
     We have black "goals" at the top and bottom, and white "goals" at the left and right.
     """
 
-    def __init__(self, _cols, _rows, _first_move="w"):
+    def __init__(self, _cols, _rows, _first_turn="w"):
         self.cols = _cols
         self.rows = _rows
         self.board = []
@@ -22,9 +23,9 @@ class Game:
         self.white_board = []
         self.black_components = DisjointSet([])
         self.white_components = DisjointSet([])
-        self.turn = _first_move  # for now, default first turn is white's
-        self.first_turn = _first_move  # save in case of reset
-        
+        self.turn = _first_turn  # for now, default first turn is white's
+        self.first_turn = _first_turn  # save in case of reset
+
         self.reset_board()  # set starting state of board and components
 
     def move(self, colour, x, y):
@@ -78,6 +79,9 @@ class Game:
             return "none"
 
     def update_components(self, colour, x, y):
+        """
+        Update the connected components of the given colour to include the new cell (x,y)
+        """
         match colour:
             case "w":
                 components = self.white_components
@@ -85,7 +89,7 @@ class Game:
                 components = self.black_components
             case _:
                 raise ValueError("Invalid colour given to update_components")
-        
+
         components.add((x,y))
         # attempt to connect to each matching colour in surrounding hex
         adj = [(x-1, y), (x, y+1), (x+1, y+1), (x+1, y), (x, y-1), (x-1,y-1)]
@@ -103,10 +107,10 @@ class Game:
         self.board = self._create_board()
         self.black_board = self._create_board()
         self.white_board = self._create_board()
-        
+
         # revert to correct first turn
         self.turn = self.first_turn
-        
+
         # set starting components
         self.black_components = DisjointSet([])
         self.white_components = DisjointSet([])
@@ -118,7 +122,7 @@ class Game:
             bottom_row.append((x, 0))
         self.black_components.add(top_row)
         self.black_components.add(bottom_row)
-        
+
         # initial white components are left and right columns
         left_col = []
         right_col = []
@@ -127,7 +131,7 @@ class Game:
             right_col.append((self.cols+1, y))
         self.white_components.add(left_col)
         self.white_components.add(right_col)
-        
+
 
     def _create_board(self):
         """
