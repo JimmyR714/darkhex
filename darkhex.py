@@ -15,7 +15,7 @@ class AbstractDarkHex:
     We have black "goals" at the top and bottom, and white "goals" at the left and right.
     """
 
-    def __init__(self, _cols, _rows, _first_turn="w"):
+    def __init__(self, _cols : int, _rows : int, _first_turn="w"):
         self.cols = _cols
         self.rows = _rows
         self.board = []
@@ -28,7 +28,7 @@ class AbstractDarkHex:
 
         self.reset_board()  # set starting state of board and components
 
-    def move(self, colour, x, y):
+    def move(self, x : int, y : int, colour : str):
         """
         Attempt to place a piece of a given colour into a given cell
         Parameters:
@@ -46,15 +46,14 @@ class AbstractDarkHex:
         cell = self.board[x][y]
         if cell != "e":  # if the chosen cell is not empty
             # update our view, since we know where their piece is now
-            assert cell != colour  # check that we haven't chosen a cell of our colour
-            self._get_board(colour)[x][y] = self._swap_colour(colour)  # view update
+            self._get_board(colour)[x][y] = self.board[x][y]  # view update
             return "full"
         else:
             # update global board and our view
             self.board[x][y] = colour
             self._get_board(colour)[x][y] = colour
             self.turn = self._swap_colour(colour)  # swap turn
-            self.update_components(colour, x, y)  # update components
+            self.update_components(x, y, colour)  # update components
             win_check = self.win_check()
             if win_check != "none":
                 return win_check
@@ -78,14 +77,14 @@ class AbstractDarkHex:
         else:
             return "none"
 
-    def update_components(self, colour, x, y):
+    def update_components(self, x : int, y : int, colour : str):
         """
         Update the connected components of the given colour to include the new cell (x,y)
         """
         match colour:
             case "w":
                 components = self.white_components
-            case "b": 
+            case "b":
                 components = self.black_components
             case _:
                 raise ValueError("Invalid colour given to update_components")
@@ -95,9 +94,10 @@ class AbstractDarkHex:
         adj = [(x-1, y), (x, y+1), (x+1, y+1), (x+1, y), (x, y-1), (x-1,y-1)]
         for cell in adj:
             # if adjacent cell is of the same colour
-            if self.board[cell[0]][cell[1]] == colour:
+            if self.board[cell[1]][cell[0]] == colour:
                 # connect the components
                 components.merge((x,y),cell)
+
 
     def reset_board(self):
         """
@@ -115,22 +115,18 @@ class AbstractDarkHex:
         self.black_components = DisjointSet([])
         self.white_components = DisjointSet([])
         # initial black components are top and bottom rows
-        top_row = []
-        bottom_row = []
-        for x in range(self.cols):
-            top_row.append((x+1, self.rows+1))
-            bottom_row.append((x, 0))
-        self.black_components.add(top_row)
-        self.black_components.add(bottom_row)
+        for x in range(1,self.cols+1):
+            self.black_components.add((x, self.rows+1))
+            self.black_components.merge((1, self.rows+1), (x, self.rows+1))
+            self.black_components.add((x, 0))
+            self.black_components.merge((1,0), (x,0))
 
         # initial white components are left and right columns
-        left_col = []
-        right_col = []
-        for y in range(1,self.rows+1):
-            left_col.append((0,y))
-            right_col.append((self.cols+1, y))
-        self.white_components.add(left_col)
-        self.white_components.add(right_col)
+        for y in range(self.rows+2):
+            self.white_components.add((0,y))
+            self.white_components.merge((0,0), (0,y))
+            self.white_components.add((self.cols+1, y))
+            self.white_components.merge((self.cols+1,0), (self.cols+1, y))
 
 
     def _create_board(self):
@@ -139,10 +135,12 @@ class AbstractDarkHex:
         The top and bottom rows are black, the left and right columns are white
         """
         row = ["w"] + ["b" for i in range(self.cols)] + ["w"]
-        return [row] + [["w"] + ["e" for i in range(self.cols)] + ["w"] for j in range(self.rows)] + [row]
+        return [row] + [
+            ["w"] + ["e" for i in range(self.cols)] + ["w"] for j in range(self.rows)
+        ] + [row]
 
 
-    def _get_board(self, colour):
+    def _get_board(self, colour : str):
         """
         Returns the board for a given colour
         """
@@ -155,7 +153,7 @@ class AbstractDarkHex:
                 raise ValueError("Invalid colour given to _get_board")
 
 
-    def _swap_colour(self,colour):
+    def _swap_colour(self, colour : str):
         """
         Returns the opposite colour to what has been input
         """
