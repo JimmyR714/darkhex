@@ -1,6 +1,8 @@
 """ Module for the display of the program """
 
 import tkinter as tk
+import logging
+from functools import partial
 import darkhex
 import util
 
@@ -85,7 +87,7 @@ class DisplayWindow(tk.Tk):
         frm_game.grid(row=0, column=1, sticky="nsew")
 
 
-    def change_dim(self, incr: bool, dim : str, label):
+    def change_dim(self, incr: bool, dim : str, label) -> None:
         """
         Change the value of the dimensions for the game
         """
@@ -100,7 +102,7 @@ class DisplayWindow(tk.Tk):
         label["text"] = f"{x}"
 
 
-    def new_game(self):
+    def new_game(self) -> None:
         """
         Start a new game of dark hex
         """
@@ -109,7 +111,7 @@ class DisplayWindow(tk.Tk):
         self.draw_view("g")
 
 
-    def draw_view(self, colour:str):
+    def draw_view(self, colour:str) -> None:
         """
         Draws the view of the board into the frame
         
@@ -133,36 +135,36 @@ class DisplayWindow(tk.Tk):
         # now draw the chosen board
         frm_hex = tk.Frame(self.game_frame)
         frm_hex.pack()
-        for y, row in enumerate(board):
-            for x, cell in enumerate(row):
-                if x == 0 or x == self.rows - 1 or y == 0 or y == self.cols - 1:
-                    continue
+        for row_index in range(1,self.rows+1):
+            row = board[row_index]
+            for col_index in range(1,self.cols+1):
+                cell = row[col_index]
                 button = tk.Button(
                     frm_hex,
-                    text=f"{x}, {y}",
+                    text=f"{col_index}, {row_index}",
                     anchor="center",
                     bg=util.colour_map[cell],
                     width=5,
                     height=5,
-                    command=self.play_move(x,y)
+                    command=partial(self.play_move, row_index, col_index)
                 )
                 # add this button to hexes
-                self.hexes[button] = (x,y)
+                self.hexes[(col_index,row_index)] = button
                 button.grid(
-                    row=y,
-                    column=x,
+                    row=row_index-1,
+                    column=col_index-1,
                     padx=5,
                     pady=5,
                     sticky="nsew"
                 )
 
 
-    def play_move(self, x, y):
+    def play_move(self, row : int, col : int) -> None:
         """
         Play a move on the board
         """
         turn = self.game.turn
-        result = self.game.move(x, y, turn)
+        result = self.game.move(row, col, turn)
         match result:
             case "full":
                 # allow them to retry
@@ -170,23 +172,25 @@ class DisplayWindow(tk.Tk):
             case "placed":
                 # update cell colour, swap turns
                 try:
-                    btn = self.hexes[(x,y)]
-                    colour = self.game.board[y][x]
-                    btn.bg=util.colour_map[util.swap_colour(colour)]
+                    btn = self.hexes[(col,row)]
+                    colour = self.game.turn
+                    logging.info("%s has been placed at (%s, %s)", colour, col, row)
+                    btn.config(bg=util.colour_map[colour])
                 except KeyError:
-                    pass
+                    logging.error("Key Error when placing cell")
             case "black_win":
+                logging.info("Black has won!")
                 # finish game with black winning
-                pass
             case "white_win":
+                logging.info("White has won!")
                 # finish game with white winning
-                pass
 
 
 def main():
     """
     Create the display for the game and run the mainloop
     """
+    logging.basicConfig(level=logging.DEBUG)
     window = DisplayWindow()
     window.mainloop()
 

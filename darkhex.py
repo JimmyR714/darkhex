@@ -2,6 +2,7 @@
 
 from scipy.cluster.hierarchy import DisjointSet
 import util
+import logging
 
 class AbstractDarkHex:
     """
@@ -26,16 +27,16 @@ class AbstractDarkHex:
         self.white_components = DisjointSet([])
         self.turn = _first_turn  # for now, default first turn is white's
         self.first_turn = _first_turn  # save in case of reset
-
+        logging.info("Board parameters defined")
         self.reset_board()  # set starting state of board and components
 
-    def move(self, x : int, y : int, colour : str) -> str:
+    def move(self, row : int, col : int, colour : str) -> str:
         """
         Attempt to place a piece of a given colour into a given cell
         Parameters:
             colour: "b" or "w" representing black and white respectively
-            x: The row to insert on, with 1 being at the top
-            y: The column to insert on, with 1 being at the left
+            row: The row to insert on, with 1 being at the top
+            col: The column to insert on, with 1 being at the left
         Returns:
             "black_win" if the cell is placed and this wins the game for black
             "white_win" if the cell is placed and this wins the game for white
@@ -45,17 +46,18 @@ class AbstractDarkHex:
         # check that this player is allowed to move
         assert colour == self.turn
 
-        cell = self.board[x][y]
+        cell = self.board[row][col]
         if cell != "e":  # if the chosen cell is not empty
+            logging.info("Non-empty cell {cell} at {x}, {y}")
             # update our view, since we know where their piece is now
-            self._get_board(colour)[x][y] = self.board[x][y]  # view update
+            self._get_board(colour)[row][col] = self.board[row][col]  # view update
             return "full"
         else:
             # update global board and our view
-            self.board[x][y] = colour
-            self._get_board(colour)[x][y] = colour
+            self.board[row][col] = colour
+            self._get_board(colour)[row][col] = colour
             self.turn = util.swap_colour(colour)  # swap turn
-            self.update_components(x, y, colour)  # update components
+            self.update_components(row, col, colour)  # update components
             win_check = self.win_check()
             if win_check != "none":
                 return win_check
@@ -79,9 +81,9 @@ class AbstractDarkHex:
         else:
             return "none"
 
-    def update_components(self, x : int, y : int, colour : str) -> None:
+    def update_components(self, row : int, col : int, colour : str) -> None:
         """
-        Update the connected components of the given colour to include the new cell (x,y)
+        Update the connected components of the given colour to include the new cell (col,row)
         """
         match colour:
             case "w":
@@ -91,14 +93,15 @@ class AbstractDarkHex:
             case _:
                 raise ValueError("Invalid colour given to update_components")
 
-        components.add((x,y))
+        components.add((col,row))
         # attempt to connect to each matching colour in surrounding hex
-        adj = [(x-1, y), (x, y+1), (x+1, y+1), (x+1, y), (x, y-1), (x-1,y-1)]
+        adj = [(col-1, row), (col, row+1), (col+1, row+1), (col+1, row), (col, row-1), (col-1,row-1)]
         for cell in adj:
             # if adjacent cell is of the same colour
             if self.board[cell[1]][cell[0]] == colour:
+                print(cell, cell[1], cell[0], self.board)
                 # connect the components
-                components.merge((x,y),cell)
+                components.merge((col,row),cell)
 
 
     def reset_board(self) -> None:
