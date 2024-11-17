@@ -47,7 +47,8 @@ class DisplayWindow(tk.Tk):
         frm_rows = tk.Frame(frm_buttons)
         lbl_row_value = tk.Label(master=frm_rows, text=str(self.rows))
         btn_row_decrease = tk.Button(
-            master=frm_rows, text="-", command=partial(self.change_dim, False, "rows", lbl_row_value)
+            master=frm_rows, text="-",
+            command=partial(self.change_dim, False, "rows", lbl_row_value)
         )
         btn_row_increase = tk.Button(
             master=frm_rows, text="+", command=partial(self.change_dim, True, "rows", lbl_row_value)
@@ -57,7 +58,8 @@ class DisplayWindow(tk.Tk):
         frm_cols = tk.Frame(frm_buttons)
         lbl_col_value = tk.Label(master=frm_cols, text=str(self.cols))
         btn_col_decrease = tk.Button(
-            master=frm_cols, text="-", command=partial(self.change_dim, False, "cols", lbl_col_value)
+            master=frm_cols, text="-",
+            command=partial(self.change_dim, False, "cols", lbl_col_value)
         )
         btn_col_increase = tk.Button(
             master=frm_cols, text="+", command=partial(self.change_dim, True, "cols", lbl_col_value)
@@ -116,7 +118,7 @@ class DisplayWindow(tk.Tk):
 
         self.hexes = {}
         self.game = darkhex.AbstractDarkHex(self.cols, self.rows)
-        self.draw_view("g")
+        self.draw_view("b")
 
 
     def draw_view(self, colour:str) -> None:
@@ -133,10 +135,13 @@ class DisplayWindow(tk.Tk):
         match colour:
             case "w":
                 board = self.game.white_board
+                logging.info("White board drawn")
             case "b":
                 board = self.game.black_board
+                logging.info("Black board drawn")
             case "g":
                 board = self.game.board
+                logging.info("Global board drawn")
             case _:
                 raise ValueError("Invalid colour input to draw_view")
 
@@ -148,17 +153,17 @@ class DisplayWindow(tk.Tk):
                 button = tk.Button(
                     self.hex_frame,
                     #text=f"{col_index}, {row_index}",
-                    anchor="center",
+                    #anchor="center",
                     bg=util.colour_map[cell],
                     width=5,
-                    height=5,
+                    height=3,
                     command=partial(self.play_move, row_index, col_index)
                 )
                 # add this button to hexes
                 self.hexes[(col_index,row_index)] = button
                 button.grid(
                     row=row_index-1,
-                    column=col_index-1,
+                    column=row_index - 1 + 2*(col_index-1),
                     padx=5,
                     pady=5,
                     sticky="nsew"
@@ -186,9 +191,11 @@ class DisplayWindow(tk.Tk):
                     logging.error("Key Error when placing cell")
             case "black_win":
                 logging.info("Black has won!")
+                self.new_game()
                 # finish game with black winning
             case "white_win":
                 logging.info("White has won!")
+                self.new_game()
                 # finish game with white winning
 
 
