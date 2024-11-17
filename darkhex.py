@@ -1,8 +1,8 @@
 """Module containing the game class that allows dark hex to run with multiple board sizes"""
 
+import logging
 from scipy.cluster.hierarchy import DisjointSet
 import util
-import logging
 
 class AbstractDarkHex:
     """
@@ -58,7 +58,10 @@ class AbstractDarkHex:
             self._get_board(colour)[row][col] = colour
             self.turn = util.swap_colour(colour)  # swap turn
             self.update_components(row, col, colour)  # update components
+            logging.info("%s played at (%s, %s)",
+                         util.colour_map[colour], col, row)
             win_check = self.win_check()
+            logging.info("Result of win_check is: %s", win_check)
             if win_check != "none":
                 return win_check
             else:
@@ -74,6 +77,7 @@ class AbstractDarkHex:
             "none" if nobody has won
         """
         #check if the two black rows are connected or the two white columns are connected
+        logging.info("Performing a win check")
         if self.black_components.connected((1,0), (self.cols, self.rows+1)):
             return "black_win"
         elif self.white_components.connected((0,0), (self.cols+1, self.rows+1)):
@@ -85,6 +89,7 @@ class AbstractDarkHex:
         """
         Update the connected components of the given colour to include the new cell (col,row)
         """
+        logging.debug("Attempting to merge components surrounding (%s, %s)", col, row)
         match colour:
             case "w":
                 components = self.white_components
@@ -95,13 +100,18 @@ class AbstractDarkHex:
 
         components.add((col,row))
         # attempt to connect to each matching colour in surrounding hex
-        adj = [(col-1, row), (col, row+1), (col+1, row+1), (col+1, row), (col, row-1), (col-1,row-1)]
+        adj = [
+            (col-1, row), (col, row+1), (col+1, row+1), 
+            (col+1, row), (col, row-1), (col-1,row-1)
+        ]
         for cell in adj:
             # if adjacent cell is of the same colour
             if self.board[cell[1]][cell[0]] == colour:
                 print(cell, cell[1], cell[0], self.board)
                 # connect the components
                 components.merge((col,row),cell)
+                logging.debug("(%s, %s) and %s %s components merged", 
+                              col, row, cell, util.colour_map[colour])
 
 
     def reset_board(self) -> None:
@@ -132,6 +142,8 @@ class AbstractDarkHex:
             self.white_components.merge((0,0), (0,y))
             self.white_components.add((self.cols+1, y))
             self.white_components.merge((self.cols+1,0), (self.cols+1, y))
+            
+        logging.info("Board reset")
 
 
     def _create_board(self) -> list[list[str]]:
@@ -139,6 +151,7 @@ class AbstractDarkHex:
         Create a starting board of size cols+1 x rows+1
         The top and bottom rows are black, the left and right columns are white
         """
+        logging.info("New board created")
         row = ["w"] + ["b" for i in range(self.cols)] + ["w"]
         return [row] + [
             ["w"] + ["e" for i in range(self.cols)] + ["w"] for j in range(self.rows)

@@ -35,29 +35,32 @@ class DisplayWindow(tk.Tk):
         # define game frame
         frm_game = tk.Frame(self)
         self.game_frame = frm_game
+        frm_hex = tk.Frame(frm_game)
+        self.hex_frame = frm_hex
+        frm_hex.pack()
 
         # define menu frame
         frm_buttons = tk.Frame(self, relief=tk.RAISED, bd=2)
-        btn_newgame = tk.Button(frm_buttons, text="New Game", command=self.new_game())
+        btn_newgame = tk.Button(frm_buttons, text="New Game", command=self.new_game)
 
         lbl_rows = tk.Label(frm_buttons, text="Rows")
         frm_rows = tk.Frame(frm_buttons)
         lbl_row_value = tk.Label(master=frm_rows, text=str(self.rows))
         btn_row_decrease = tk.Button(
-            master=frm_rows, text="-", command=self.change_dim(False, "rows", lbl_row_value)
+            master=frm_rows, text="-", command=partial(self.change_dim, False, "rows", lbl_row_value)
         )
         btn_row_increase = tk.Button(
-            master=frm_rows, text="+", command=self.change_dim(True, "rows", lbl_row_value)
+            master=frm_rows, text="+", command=partial(self.change_dim, True, "rows", lbl_row_value)
         )
 
         lbl_cols = tk.Label(frm_buttons, text="Cols")
         frm_cols = tk.Frame(frm_buttons)
         lbl_col_value = tk.Label(master=frm_cols, text=str(self.cols))
         btn_col_decrease = tk.Button(
-            master=frm_cols, text="-", command=self.change_dim(False, "cols", lbl_col_value)
+            master=frm_cols, text="-", command=partial(self.change_dim, False, "cols", lbl_col_value)
         )
         btn_col_increase = tk.Button(
-            master=frm_cols, text="+", command=self.change_dim(True, "cols", lbl_col_value)
+            master=frm_cols, text="+", command=partial(self.change_dim, True, "cols", lbl_col_value)
         )
 
         btn_open = tk.Button(frm_buttons, text="Open")
@@ -93,10 +96,10 @@ class DisplayWindow(tk.Tk):
         """
         match dim:
             case "rows":
-                self.rows = min(max(self.rows + (2*int(incr)-1), 0), MAX_ROWS)
+                self.rows = min(max(self.rows + (2*int(incr)-1), 1), MAX_ROWS)
                 x = self.rows
             case "cols":
-                self.cols = min(max(self.cols + (2*int(incr)-1), 0), MAX_ROWS)
+                self.cols = min(max(self.cols + (2*int(incr)-1), 1), MAX_ROWS)
                 x = self.cols
 
         label["text"] = f"{x}"
@@ -106,6 +109,11 @@ class DisplayWindow(tk.Tk):
         """
         Start a new game of dark hex
         """
+        #remove the previous game
+        widgets = self.hex_frame.grid_slaves()
+        for l in widgets:
+            l.destroy()
+
         self.hexes = {}
         self.game = darkhex.AbstractDarkHex(self.cols, self.rows)
         self.draw_view("g")
@@ -133,15 +141,13 @@ class DisplayWindow(tk.Tk):
                 raise ValueError("Invalid colour input to draw_view")
 
         # now draw the chosen board
-        frm_hex = tk.Frame(self.game_frame)
-        frm_hex.pack()
         for row_index in range(1,self.rows+1):
             row = board[row_index]
             for col_index in range(1,self.cols+1):
                 cell = row[col_index]
                 button = tk.Button(
-                    frm_hex,
-                    text=f"{col_index}, {row_index}",
+                    self.hex_frame,
+                    #text=f"{col_index}, {row_index}",
                     anchor="center",
                     bg=util.colour_map[cell],
                     width=5,
@@ -173,7 +179,7 @@ class DisplayWindow(tk.Tk):
                 # update cell colour, swap turns
                 try:
                     btn = self.hexes[(col,row)]
-                    colour = self.game.turn
+                    colour = util.swap_colour(self.game.turn)
                     logging.info("%s has been placed at (%s, %s)", colour, col, row)
                     btn.config(bg=util.colour_map[colour])
                 except KeyError:
