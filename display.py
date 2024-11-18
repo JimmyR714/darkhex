@@ -119,7 +119,7 @@ class DisplayWindow(tk.Tk):
         self.hexes = {}
         self.game = darkhex.AbstractDarkHex(self.cols, self.rows)
         self.update_title()
-        self.draw_view("b")
+        self.draw_view("g")
 
 
     def draw_view(self, colour:str) -> None:
@@ -147,14 +147,14 @@ class DisplayWindow(tk.Tk):
                 raise ValueError("Invalid colour input to draw_view")
 
         # now draw the chosen board
+        cnv_hex = tk.Canvas(self.hex_frame)
         for row_index in range(1,self.rows+1):
             row = board[row_index]
             for col_index in range(1,self.cols+1):
                 cell = row[col_index]
-                frm_new = tk.Frame(self.hex_frame)
                 # create the button
                 button = tk.Button(
-                    frm_new,
+                    self.hex_frame,
                     bg=util.colour_map[cell],
                     width=5,
                     height=3,
@@ -163,19 +163,20 @@ class DisplayWindow(tk.Tk):
                 # add this button to hexes
                 self.hexes[(col_index,row_index)] = button
                 # create the hex
-                cnv_hex = tk.Canvas(frm_new)
-                x,y = button.winfo_rootx(), button.winfo_rooty()
-                util.draw_hex((x,y), 100, cnv_hex)
                 # place widgets
-                cnv_hex.place(x=0,y=0)
-                button.place(x=0, y=0)
-                frm_new.grid(
-                    row=row_index-1,
-                    column=row_index - 1 + 2*(col_index-1),
+                row_num = row_index-1
+                col_num = row_index - 1 + 2*(col_index-1)
+                button.grid(
+                    row=row_num,
+                    column=col_num,
                     padx=5,
                     pady=5,
                     sticky="nsew"
                 )
+                logging.debug("Button gridded to (%s, %s)", col_num, row_num)
+                x,y = col_num*55, row_num*65
+                util.draw_hex((x+25,y+35), 45, cnv_hex)
+        cnv_hex.place(x=0,y=0)
 
 
     def play_move(self, row : int, col : int) -> None:
