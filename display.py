@@ -147,68 +147,49 @@ class DisplayWindow(tk.Tk):
                 raise ValueError("Invalid colour input to draw_view")
 
         # now draw the chosen board
-        cnv_hex = tk.Canvas(self.hex_frame)
+        cnv_hex = tk.Canvas(self.hex_frame, width=1920, height=1080)
         for row_index in range(self.rows+2):
             row = board[row_index]
             for col_index in range(self.cols+2):
                 cell = row[col_index]
                 row_num = row_index
-                col_num = row_index + 2*(col_index-1)
+                col_num = row_index + 2*col_index
                 hex_x, hex_y = col_num*55, row_num*65
                 #check if this is a bordering white cell
                 if col_index in [0, self.cols+1]:
-                    util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex, bkg_colour="white")
-                    button = tk.Button(
-                        self.hex_frame,
-                        bg="white",
-                        width=5,
-                        height=3,
-                    )
-                    button.grid(
-                        row=row_num,
-                        column=col_num,
-                        padx=5,
-                        pady=5,
-                        sticky="nsew"
-                    )
+                    cmd = None
+                    bg = "white"
+                    hex_bg = bg
                 #check if this is a bordering black cell
                 elif row_index in [0, self.rows+1]:
-                    util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex, bkg_colour="black")
-                    button = tk.Button(
-                        self.hex_frame,
-                        bg="black",
-                        width=5,
-                        height=3,
-                    )
-                    button.grid(
-                        row=row_num,
-                        column=col_num,
-                        padx=5,
-                        pady=5,
-                        sticky="nsew"
-                    )
+                    cmd = None
+                    bg = "black"
+                    hex_bg = bg
                 else:
-                    # create the button
-                    button = tk.Button(
-                        self.hex_frame,
-                        bg=util.colour_map[cell],
-                        width=5,
-                        height=3,
-                        command=partial(self.play_move, row_index, col_index)
-                    )
-                    # add this button to hexes
-                    self.hexes[(col_index,row_index)] = button
-                    # create the hex
-                    # place widgets
-                    button.grid(
-                        row=row_num,
-                        column=col_num,
-                        padx=5,
-                        pady=5,
-                        sticky="nsew"
-                    )
-                    logging.debug("Button gridded to (%s, %s)", col_num, row_num)
-                    util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex)
+                    cmd = partial(self.play_move, row_index, col_index)
+                    bg = util.colour_map[cell]
+                    hex_bg = ""
+                # create the hex
+                util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex, bkg_colour=hex_bg)
+                # create the button
+                button = tk.Button(
+                    self.hex_frame,
+                    bg=bg,
+                    width=5,
+                    height=3,
+                    command=cmd
+                )
+                # add this button to hexes
+                self.hexes[(col_index,row_index)] = button
+                # place widgets
+                button.grid(
+                    row=row_num,
+                    column=col_num,
+                    padx=5,
+                    pady=5,
+                    sticky="nsew"
+                )
+                logging.debug("Button gridded to (%s, %s)", col_num, row_num)
         cnv_hex.place(x=0,y=0)
 
 
