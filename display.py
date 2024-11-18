@@ -33,11 +33,11 @@ class DisplayWindow(tk.Tk):
         self.columnconfigure(1, minsize=800, weight=1)
 
         # define game frame
-        frm_game = tk.Frame(self)
-        self.game_frame = frm_game
-        frm_hex = tk.Frame(frm_game)
-        self.hex_frame = frm_hex
-        frm_hex.pack()
+        self.game_frame = tk.Frame(self)
+        self.hex_frame = tk.Frame(self.game_frame)
+        self.game_title = tk.Label(self.game_frame, text="Create a game to start", pady=15)
+        self.game_title.pack()
+        self.hex_frame.pack()
 
         # define menu frame
         frm_buttons = tk.Frame(self, relief=tk.RAISED, bd=2)
@@ -89,7 +89,7 @@ class DisplayWindow(tk.Tk):
 
         # place two main frames
         frm_buttons.grid(row=0, column=0, sticky="ns")
-        frm_game.grid(row=0, column=1, sticky="nsew")
+        self.game_frame.grid(row=0, column=1, sticky="nsew")
 
 
     def change_dim(self, incr: bool, dim : str, label) -> None:
@@ -118,6 +118,7 @@ class DisplayWindow(tk.Tk):
 
         self.hexes = {}
         self.game = darkhex.AbstractDarkHex(self.cols, self.rows)
+        self.update_title()
         self.draw_view("b")
 
 
@@ -150,10 +151,10 @@ class DisplayWindow(tk.Tk):
             row = board[row_index]
             for col_index in range(1,self.cols+1):
                 cell = row[col_index]
+                frm_new = tk.Frame(self.hex_frame)
+                # create the button
                 button = tk.Button(
-                    self.hex_frame,
-                    #text=f"{col_index}, {row_index}",
-                    #anchor="center",
+                    frm_new,
                     bg=util.colour_map[cell],
                     width=5,
                     height=3,
@@ -161,7 +162,14 @@ class DisplayWindow(tk.Tk):
                 )
                 # add this button to hexes
                 self.hexes[(col_index,row_index)] = button
-                button.grid(
+                # create the hex
+                cnv_hex = tk.Canvas(frm_new)
+                x,y = button.winfo_rootx(), button.winfo_rooty()
+                util.draw_hex((x,y), 100, cnv_hex)
+                # place widgets
+                cnv_hex.place(x=0,y=0)
+                button.place(x=0, y=0)
+                frm_new.grid(
                     row=row_index-1,
                     column=row_index - 1 + 2*(col_index-1),
                     padx=5,
@@ -187,6 +195,7 @@ class DisplayWindow(tk.Tk):
                     colour = util.swap_colour(self.game.turn)
                     logging.info("%s has been placed at (%s, %s)", colour, col, row)
                     btn.config(bg=util.colour_map[colour])
+                    self.update_title()
                 except KeyError:
                     logging.error("Key Error when placing cell")
             case "black_win":
@@ -197,6 +206,11 @@ class DisplayWindow(tk.Tk):
                 logging.info("White has won!")
                 self.new_game()
                 # finish game with white winning
+
+
+    def update_title(self) -> None:
+        """Updates the title with the person whose turn it is"""
+        self.game_title.config(text=f"It is {util.colour_map[self.game.turn]}'s turn")
 
 
 def main():
