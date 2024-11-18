@@ -148,34 +148,67 @@ class DisplayWindow(tk.Tk):
 
         # now draw the chosen board
         cnv_hex = tk.Canvas(self.hex_frame)
-        for row_index in range(1,self.rows+1):
+        for row_index in range(self.rows+2):
             row = board[row_index]
-            for col_index in range(1,self.cols+1):
+            for col_index in range(self.cols+2):
                 cell = row[col_index]
-                # create the button
-                button = tk.Button(
-                    self.hex_frame,
-                    bg=util.colour_map[cell],
-                    width=5,
-                    height=3,
-                    command=partial(self.play_move, row_index, col_index)
-                )
-                # add this button to hexes
-                self.hexes[(col_index,row_index)] = button
-                # create the hex
-                # place widgets
-                row_num = row_index-1
-                col_num = row_index - 1 + 2*(col_index-1)
-                button.grid(
-                    row=row_num,
-                    column=col_num,
-                    padx=5,
-                    pady=5,
-                    sticky="nsew"
-                )
-                logging.debug("Button gridded to (%s, %s)", col_num, row_num)
-                x,y = col_num*55, row_num*65
-                util.draw_hex((x+25,y+35), 45, cnv_hex)
+                row_num = row_index
+                col_num = row_index + 2*(col_index-1)
+                hex_x, hex_y = col_num*55, row_num*65
+                #check if this is a bordering white cell
+                if col_index in [0, self.cols+1]:
+                    util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex, bkg_colour="white")
+                    button = tk.Button(
+                        self.hex_frame,
+                        bg="white",
+                        width=5,
+                        height=3,
+                    )
+                    button.grid(
+                        row=row_num,
+                        column=col_num,
+                        padx=5,
+                        pady=5,
+                        sticky="nsew"
+                    )
+                #check if this is a bordering black cell
+                elif row_index in [0, self.rows+1]:
+                    util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex, bkg_colour="black")
+                    button = tk.Button(
+                        self.hex_frame,
+                        bg="black",
+                        width=5,
+                        height=3,
+                    )
+                    button.grid(
+                        row=row_num,
+                        column=col_num,
+                        padx=5,
+                        pady=5,
+                        sticky="nsew"
+                    )
+                else:
+                    # create the button
+                    button = tk.Button(
+                        self.hex_frame,
+                        bg=util.colour_map[cell],
+                        width=5,
+                        height=3,
+                        command=partial(self.play_move, row_index, col_index)
+                    )
+                    # add this button to hexes
+                    self.hexes[(col_index,row_index)] = button
+                    # create the hex
+                    # place widgets
+                    button.grid(
+                        row=row_num,
+                        column=col_num,
+                        padx=5,
+                        pady=5,
+                        sticky="nsew"
+                    )
+                    logging.debug("Button gridded to (%s, %s)", col_num, row_num)
+                    util.draw_hex((hex_x+26,hex_y+35), 45, cnv_hex)
         cnv_hex.place(x=0,y=0)
 
 
