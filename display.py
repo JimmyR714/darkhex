@@ -228,6 +228,20 @@ class DisplayWindow(tk.Tk):
         self.game_title.config(text=f"It is {util.colour_map[self.game.turn]}'s turn")
 
 
+class HexCell(tk.Button):
+    """
+    A class that represents a single cell on the board.
+    Some cells can be pressed (the interior ones), to attempt to fill them in.
+    Other cells cannot be pressed (bordering ones).
+    Each cell maintains three states, the global, white, and black states.
+    """
+
+    def __init__(self):
+        self.config()
+        pass
+
+
+
 def main():
     """
     Create the display for the game and run the mainloop

@@ -12,7 +12,7 @@ class AbstractDarkHex:
     
     By default, white moves first.
     
-    Assume that position (1,1) is the top left cell, and (1,2) is the top row, 2nd column etc.
+    Assume that position (1,1) is the top left cell, and (2,1) is the top row, 2nd column etc.
     
     We have black "goals" at the top and bottom, and white "goals" at the left and right.
     """
@@ -48,7 +48,7 @@ class AbstractDarkHex:
 
         cell = self.board[row][col]
         if cell != "e":  # if the chosen cell is not empty
-            logging.info("Non-empty cell {cell} at {x}, {y}")
+            logging.info(("Non-empty cell ", cell, " at ", col, ", ", row))
             # update our view, since we know where their piece is now
             self._get_board(colour)[row][col] = self.board[row][col]  # view update
             return "full"
@@ -78,9 +78,9 @@ class AbstractDarkHex:
         """
         #check if the two black rows are connected or the two white columns are connected
         logging.info("Performing a win check")
-        if self.black_components.connected((1,0), (self.cols, self.rows+1)):
+        if self.black_components.connected((1, 0), (1, self.rows+1)):
             return "black_win"
-        elif self.white_components.connected((0,0), (self.cols+1, self.rows+1)):
+        elif self.white_components.connected((0, 1), (0, self.cols+1)):
             return "white_win"
         else:
             return "none"
@@ -101,13 +101,12 @@ class AbstractDarkHex:
         components.add((col,row))
         # attempt to connect to each matching colour in surrounding hex
         adj = [
-            (col-1, row), (col, row+1), (col+1, row+1), 
+            (col-1, row), (col, row+1), (col+1, row+1),
             (col+1, row), (col, row-1), (col-1,row-1)
         ]
         for cell in adj:
             # if adjacent cell is of the same colour
             if self.board[cell[1]][cell[0]] == colour:
-                print(cell, cell[1], cell[0], self.board)
                 # connect the components
                 components.merge((col,row),cell)
                 logging.debug("(%s, %s) and %s %s components merged", 
@@ -131,10 +130,10 @@ class AbstractDarkHex:
         self.white_components = DisjointSet([])
         # initial black components are top and bottom rows
         for x in range(1,self.cols+1):
-            self.black_components.add((x, self.rows+1))
-            self.black_components.merge((1, self.rows+1), (x, self.rows+1))
             self.black_components.add((x, 0))
             self.black_components.merge((1,0), (x,0))
+            self.black_components.add((x, self.rows+1))
+            self.black_components.merge((1, self.rows+1), (x, self.rows+1))
 
         # initial white components are left and right columns
         for y in range(self.rows+2):
@@ -142,7 +141,7 @@ class AbstractDarkHex:
             self.white_components.merge((0,0), (0,y))
             self.white_components.add((self.cols+1, y))
             self.white_components.merge((self.cols+1,0), (self.cols+1, y))
-            
+
         logging.info("Board reset")
 
 
