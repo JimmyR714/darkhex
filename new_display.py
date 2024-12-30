@@ -2,6 +2,7 @@ import logging
 import math
 from functools import partial
 import tkinter as tk
+from main import Controller
 
 MAX_ROWS = 11
 MAX_COLS = 11
@@ -15,9 +16,11 @@ class DisplayWindow(tk.Tk):
     game frames so that multiple views can be seen simultaneously.
     """
 
-    def __init__(self):
+    def __init__(self, controller: Controller):
         super().__init__()
         # configure layout
+        self.title = "Dark Hex"
+        self.controller = controller
         self.rowconfigure(0, minsize=800, weight=1)
         self.columnconfigure(1, minsize=800, weight=1)
 
@@ -39,11 +42,18 @@ class DisplayWindow(tk.Tk):
         cols = self.main_menu.cols
 
         #TODO allow multiple gameframes to be displayed
-        self.game_frame = GameFrame(num_cols=cols, num_rows=rows)
+        self.game_frame = GameFrame(master=self, num_cols=cols, num_rows=rows)
         self.game_frame.grid(row=0, column=1, sticky="nsew")
+
+        #run the new game in the controller
+        self.controller.new_game(num_cols=cols, num_rows=rows)
 
 
 class MainMenuFrame(tk.Frame):
+    """
+    Frame that contains the main menu for the program.
+    Remains on the left of the screen throughout gameplay
+    """
     rows = 3
     cols = 3
     def __init__(self, master: DisplayWindow):
@@ -113,13 +123,14 @@ class GameFrame(tk.Frame):
     """
     Frame for showing a game in.
     """
-    def __init__(self, num_cols: int, num_rows: int):
+    #TODO calculate hex size and centres
+    SIZE = 40
+
+    def __init__(self, master: DisplayWindow, num_cols: int, num_rows: int):
         super().__init__()
+        self.display_window=master
+        self.turn="w"
         self.hexes = {}
-
-        #TODO calculate hex size and centres
-        SIZE = 40
-
         #create all necessary hex buttons
         for row_index in range(num_rows+2):  #for each row
             for col_index in range(num_cols+2):
@@ -135,7 +146,7 @@ class GameFrame(tk.Frame):
                     cmd = partial(self.play_move, row_index, col_index)
                     colour = "grey"
                 # create the hex
-                button = HexButton(self, SIZE, command=cmd, init_colour=colour)
+                button = HexButton(self, self.SIZE, command=cmd, init_colour=colour)
                 # add this button to hexes
                 self.hexes[(col_index,row_index)] = button
                 # place widgets
@@ -149,7 +160,7 @@ class GameFrame(tk.Frame):
 
 
     def play_move(self, row: int, col: int):
-        pass
+        self.display_window.controller.game.move(row, col, self.turn)
 
 
 class HexButton(tk.Canvas):
@@ -194,7 +205,6 @@ class HexButton(tk.Canvas):
         else:
             colour = new_colour
         self.create_polygon(coords, outline=self.BORDER_COLOUR, fill=colour, width=1)
-        logging.debug("Hex drawn with coords %s", coords)
 
     #TODO change so it is visible
     def _on_press(self, event):
@@ -211,14 +221,3 @@ class HexButton(tk.Canvas):
         self.configure(relief="raised")
         if self.command is not None:
             self.command()
-
-def main():
-    """
-    Create the display for the game and run the mainloop
-    """
-    logging.basicConfig(level=logging.DEBUG)
-    window = DisplayWindow()
-    window.mainloop()
-
-if __name__ == "__main__":
-    main()
