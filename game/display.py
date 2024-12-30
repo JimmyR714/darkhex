@@ -3,7 +3,7 @@ import math
 from functools import partial
 import tkinter as tk
 from main import Controller
-import util
+import game.util as util
 
 MAX_ROWS = 11
 MAX_COLS = 11
@@ -35,20 +35,30 @@ class DisplayWindow(tk.Tk):
 
     def new_game(self):
         """
-        Create a new game of dark hex
+        First gets the selected game settings from the main menu.
+        Then it creates a new game, with the correct sizes and game frames.
         """
-        # get the selected game settings
+        # get rows and cols
         rows = self.main_menu.rows
         cols = self.main_menu.cols
-        #TODO make this adjustable in the menu
-        displays = ["global", "white"]
 
-        #TODO allow multiple gameframes to be displayed
+        # get the required displays
+        displays = []
+        if self.main_menu.global_display.get() == 1:
+            displays.append("global")
+        if self.main_menu.white_display.get() == 1:
+            displays.append("white")
+        if self.main_menu.black_display.get() == 1:
+            displays.append("black")
+
+        #reset previous game frames
         self.game_frames.clear()
+        #create new game frames
         for d in displays:
             self.game_frames.append(
                 GameFrame(master=self, frame_colour=d, num_cols=cols, num_rows=rows)
             )
+        #place each game frame
         for i, gf in enumerate(self.game_frames):
             gf.grid(row=0, column=1+i, sticky="nsew")
 
@@ -60,7 +70,9 @@ class DisplayWindow(tk.Tk):
         """
         Update each game frame to display the correct board
         """
+        #make the move in the abstract game
         result = self.controller.game.move(row, col, turn)
+        #update each game frame appropriately
         for gf in self.game_frames:
             gf.update_board(row, col, result)
 
@@ -112,12 +124,53 @@ class MainMenuFrame(tk.Frame):
         lbl_col_value.grid(row=0, column=1, sticky="ew")
         btn_col_increase.grid(row=0, column=2, sticky="ew")
 
+        #display selection
+        lbl_displays = tk.Label(self, text="Displays")
+        frm_displays = tk.Frame(self)
+        self.global_display = tk.IntVar()
+        btn_global_display = tk.Checkbutton(
+            frm_displays,
+            text="Global",
+            variable=self.global_display,
+            onvalue=1,
+            offvalue=0,
+            height=2,
+            width=10
+        )
+        self.white_display = tk.IntVar()
+        btn_white_display = tk.Checkbutton(
+            frm_displays,
+            text="White",
+            variable=self.white_display,
+            onvalue=1,
+            offvalue=0,
+            height=2,
+            width=10
+        )
+        self.black_display = tk.IntVar()
+        btn_black_display = tk.Checkbutton(
+            frm_displays,
+            text="Black",
+            variable=self.black_display,
+            onvalue=1,
+            offvalue=0,
+            height=2,
+            width=10
+        )
+
+        # place display selection widgets into frame
+        btn_global_display.pack()
+        btn_white_display.pack()
+        btn_black_display.pack()
+
         # place widgets into menu frame
         btn_newgame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         lbl_rows.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         frm_rows.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
         lbl_cols.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
         frm_cols.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
+        lbl_displays.grid(row=5, column=0, sticky="ew", padx=5, pady=5)
+        frm_displays.grid(row=6, column=0, sticky="ew", padx=5, pady=5)
 
 
     def change_dim(self, incr: bool, dim : str, label: tk.Label) -> None:
@@ -132,6 +185,7 @@ class MainMenuFrame(tk.Frame):
                 self.cols = min(max(self.cols + (2*int(incr)-1), 1), MAX_ROWS)
                 x = self.cols
 
+        #update the correct label with the new text
         label["text"] = f"{x}"
 
 
@@ -139,7 +193,7 @@ class GameFrame(tk.Frame):
     """
     Frame for showing a game in.
     """
-    # TODO calculate hex size and centres
+    # TODO calculate hex size
     SIZE = 40
 
     def __init__(self, master: DisplayWindow, frame_colour: str, num_cols: int, num_rows: int):
@@ -147,9 +201,10 @@ class GameFrame(tk.Frame):
         self.display_window=master
         self.frame_colour = frame_colour
         self.game_title = tk.Label(self, text="It is white's turn", pady=15)
-        #self.game_title.pack()
+        self.game_title.pack()
         self.turn="w"
         self.hexes = {}
+        frm_hexes = tk.Frame(self)
         #create all necessary hex buttons
         for row_index in range(num_rows+2):  #for each row
             for col_index in range(num_cols+2):
@@ -165,7 +220,7 @@ class GameFrame(tk.Frame):
                     cmd = partial(self.play_move, row_index, col_index)
                     colour = "grey"
                 # create the hex
-                button = HexButton(self, self.SIZE, command=cmd, init_colour=colour)
+                button = HexButton(frm_hexes, self.SIZE, command=cmd, init_colour=colour)
                 # add this button to hexes
                 self.hexes[(col_index,row_index)] = button
                 # place widgets
@@ -176,13 +231,17 @@ class GameFrame(tk.Frame):
                     pady=0,
                     sticky="nsew"
                 )
+        #place the hexes
+        frm_hexes.pack()
 
 
     def play_move(self, row: int, col: int):
         """
         Makes a move on the board, and forces this to happen in each gameframe
         """
-        self.master.update_boards(row, col, self.turn)
+        #check whether it is our turn to move
+        if self.frame_colour == "global" or self.frame_colour == util.colour_map[self.turn]:
+            self.master.update_boards(row, col, self.turn)
 
 
     def update_board(self, row: int, col: int, result: str):
@@ -190,31 +249,45 @@ class GameFrame(tk.Frame):
         Updates the display of the board to represent a move
         """
         match result:
-            case "full":
-                if self.frame_colour != "global":
+            case "full_white":
+                if self.frame_colour == "black":
                     # update the board with the new information
                     try:
                         btn = self.hexes[(col,row)]
-                        colour = util.colour_map[util.swap_colour(self.turn)]
+                        btn.draw_hex(new_colour = "white")
+                        logging.info("White has been discovered at (%s, %s)", col, row)
+                    except KeyError:
+                        logging.error("Key Error when placing cell")
+            case "full_black":
+                if self.frame_colour == "white":
+                    # update the board with the new information
+                    try:
+                        btn = self.hexes[(col,row)]
+                        btn.draw_hex(new_colour = "black")
+                        logging.info("Black has been discovered at (%s, %s)", col, row)
+                    except KeyError:
+                        logging.error("Key Error when placing cell")
+
+            case "placed":
+                # update cell colour if this player learns about the update
+                if self.frame_colour == "global" or self.frame_colour == util.colour_map[self.turn]:
+                    try:
+                        btn = self.hexes[(col,row)]
+                        colour = util.colour_map[self.turn]
                         btn.draw_hex(new_colour = colour)
                         logging.info("%s has been placed at (%s, %s)", colour, col, row)
                     except KeyError:
                         logging.error("Key Error when placing cell")
-            case "placed":
-                # update cell colour, swap turns
-                try:
-                    btn = self.hexes[(col,row)]
-                    colour = util.colour_map[self.turn]
-                    btn.draw_hex(new_colour = colour)
-                    logging.info("%s has been placed at (%s, %s)", colour, col, row)
-                    self.turn = util.swap_colour(self.turn)
-                    self.update_title()
-                except KeyError:
-                    logging.error("Key Error when placing cell")
+
+                #swap turns
+                self.turn = util.swap_colour(self.turn)
+                self.update_title()
+
             case "black_win":
                 logging.info("Black has won!")
                 self.display_window.new_game()
                 # finish game with black winning
+
             case "white_win":
                 logging.info("White has won!")
                 self.display_window.new_game()

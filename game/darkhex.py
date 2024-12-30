@@ -2,7 +2,7 @@
 
 import logging
 from scipy.cluster.hierarchy import DisjointSet
-import util
+import game.util as util
 
 class AbstractDarkHex:
     """
@@ -41,17 +41,18 @@ class AbstractDarkHex:
             "black_win" if the cell is placed and this wins the game for black
             "white_win" if the cell is placed and this wins the game for white
             "placed" if the cell is placed and the game continues
-            "full" if the cell is occupied
+            "full_white" if the cell is occupied with a white tile
+            "full_black" if the cell is occupied with a black tile
         """
         # check that this player is allowed to move
         assert colour == self.turn
 
         cell = self.board[row][col]
         if cell != "e":  # if the chosen cell is not empty
-            logging.info(("Non-empty cell ", cell, " at ", col, ", ", row))
+            logging.info("Non-empty cell %s at (%s, %s)", cell, col, row)
             # update our view, since we know where their piece is now
             self._get_board(colour)[row][col] = self.board[row][col]  # view update
-            return "full"
+            return "full_" + util.colour_map[self.board[row][col]]
         else:
             # update global board and our view
             self.board[row][col] = colour

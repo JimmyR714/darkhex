@@ -3,8 +3,8 @@ Module for the control of the program flow
 """
 
 import logging
-import display
-import darkhex
+import game.display as display
+import game.darkhex as darkhex
 
 class Controller:
     """
