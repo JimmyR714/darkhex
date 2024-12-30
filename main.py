@@ -3,7 +3,7 @@ Module for the control of the program flow
 """
 
 import logging
-import new_display as display
+import display
 import darkhex
 
 class Controller:
@@ -32,7 +32,6 @@ class Controller:
         Create a new game of dark hex
         """
         self.game = darkhex.AbstractDarkHex(num_cols, num_rows)
-
 
 
 def main():

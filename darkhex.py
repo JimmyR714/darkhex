@@ -80,7 +80,7 @@ class AbstractDarkHex:
         logging.info("Performing a win check")
         if self.black_components.connected((1, 0), (1, self.rows+1)):
             return "black_win"
-        elif self.white_components.connected((0, 1), (0, self.cols+1)):
+        elif self.white_components.connected((0, 1), (self.cols+1, 1)):
             return "white_win"
         else:
             return "none"
@@ -101,8 +101,8 @@ class AbstractDarkHex:
         components.add((col,row))
         # attempt to connect to each matching colour in surrounding hex
         adj = [
-            (col-1, row), (col, row+1), (col+1, row+1),
-            (col+1, row), (col, row-1), (col-1,row-1)
+            (col-1, row), (col, row-1), (col+1, row-1),
+            (col+1, row), (col, row+1), (col-1,row+1)
         ]
         for cell in adj:
             # if adjacent cell is of the same colour
@@ -150,7 +150,6 @@ class AbstractDarkHex:
         Create a starting board of size cols+1 x rows+1
         The top and bottom rows are black, the left and right columns are white
         """
-        logging.info("New board created")
         row = ["w"] + ["b" for i in range(self.cols)] + ["w"]
         return [row] + [
             ["w"] + ["e" for i in range(self.cols)] + ["w"] for j in range(self.rows)
