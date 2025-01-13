@@ -67,7 +67,6 @@ class AbstractDarkHex:
                 return win_check
             else:
                 return "placed"
-    #TODO bug where black wins but it isnt registered. shape like <
 
     def win_check(self) -> str:
         """

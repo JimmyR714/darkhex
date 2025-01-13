@@ -6,12 +6,14 @@ class Agent():
     """
     def __init__(self, num_cols: int, num_rows: int, colour: str):
         """
-        Creates an agent that has a strategy for the correct size board
-        This creates the self stored board and remembers board size
+        Creates an agent that has a strategy for the correct size board.
+        This creates the self stored board and remembers board size.
         
         Parameters:
-            num_cols: int: The number of columns on the board (i..e the width). Doesn't include borders.
-            num_rows: int: The number of rows on the board (i..e the height). Doesn't include borders.
+            num_cols: int: The number of columns on the board (i..e the width). 
+                Doesn't include borders.
+            num_rows: int: The number of rows on the board (i..e the height). 
+                Doesn't include borders.
             colour: str: The colour of the new cell. "w" for white and "b" for black.
         """
         self.colour = colour
@@ -22,14 +24,14 @@ class Agent():
 
     def move(self) -> tuple[int, int]:
         """
-        Make a move on the board
+        Make a move on the board.
         Uses some algorithm to decide upon the best move, and returns it.
         Doesn't add it to it's own board yet, since that cell may be full.
         
         Returns:
             (col, row): tuple[int, int]: the chosen cell to play in. 
-                col = 1 is the left column
-                row = 1 is the top row
+                col = 1 is the left column.
+                row = 1 is the top row.
         """
 
 
@@ -41,13 +43,14 @@ class Agent():
         
         Parameters:
             col: int: The chosen column to play in.
-                col = 1 is the left column
+                col = 1 is the left column.
             row: int: The chosen row to play in.
-                row = 1 is the top row
+                row = 1 is the top row.
             colour: str: The colour of the new cell. "w" for white and "b" for black.
+            
         Returns:
-            True: When another move must be made
-            False: When no other move must be made
+            True: When another move must be made.
+            False: When no other move must be made.
         """
         self.board[row][col] = colour
         #i.e. if we discovered one of their pieces

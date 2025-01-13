@@ -1,3 +1,7 @@
+"""
+Module for everything displayed on the screen
+"""
+
 import logging
 import math
 from functools import partial
@@ -51,6 +55,10 @@ class DisplayWindow(tk.Tk):
         if self.main_menu.black_display.get() == 1:
             displays.append("black")
 
+        # get agent selection
+        #TODO agent selection menu
+        agent = None
+
         #reset previous game frames
         self.game_frames.clear()
         #create new game frames
@@ -63,18 +71,7 @@ class DisplayWindow(tk.Tk):
             gf.grid(row=0, column=1+i, sticky="nsew")
 
         #run the new game in the controller
-        self.controller.new_game(num_cols=cols, num_rows=rows)
-
-
-    def update_boards(self, row, col, turn):
-        """
-        Update each game frame to display the correct board
-        """
-        #make the move in the abstract game
-        result = self.controller.game.move(row, col, turn)
-        #update each game frame appropriately
-        for gf in self.game_frames:
-            gf.update_board(row, col, result)
+        self.controller.new_game(num_cols=cols, num_rows=rows, agent=agent)
 
 
 class MainMenuFrame(tk.Frame):
@@ -241,7 +238,7 @@ class GameFrame(tk.Frame):
         """
         #check whether it is our turn to move
         if self.frame_colour == "global" or self.frame_colour == util.colour_map[self.turn]:
-            self.master.update_boards(row, col, self.turn)
+            self.master.controller.update_boards(row, col, self.turn)
 
 
     def update_board(self, row: int, col: int, result: str):
