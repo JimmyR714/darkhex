@@ -58,6 +58,7 @@ class DisplayWindow(tk.Tk):
         # get agent selection
         #TODO agent selection menu
         agent = None
+        agent_colour = "b"
 
         #reset previous game frames
         self.game_frames.clear()
@@ -71,7 +72,7 @@ class DisplayWindow(tk.Tk):
             gf.grid(row=0, column=1+i, sticky="nsew")
 
         #run the new game in the controller
-        self.controller.new_game(num_cols=cols, num_rows=rows, agent=agent)
+        self.controller.new_game(num_cols=cols, num_rows=rows, agent=agent, agent_colour=agent_colour)
 
 
 class MainMenuFrame(tk.Frame):

@@ -1,4 +1,5 @@
 """Module containing the general agent class"""
+import random
 
 class Agent():
     """
@@ -33,6 +34,8 @@ class Agent():
                 col = 1 is the left column.
                 row = 1 is the top row.
         """
+        #default move by general agent is just random
+        return (random.randint(1, self.num_cols), random.randint(1, self.num_rows))
 
 
     def update_information(self, col: int, row: int, colour: str) -> bool:
