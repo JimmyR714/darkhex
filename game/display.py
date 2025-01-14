@@ -56,9 +56,10 @@ class DisplayWindow(tk.Tk):
             displays.append("black")
 
         # get agent selection
-        #TODO agent selection menu
-        agent = None
-        agent_colour = "b"
+        agent = self.main_menu.agent_selection.get()
+        if agent == "None":
+            agent = None
+        agent_colour = self.main_menu.agent_colour.get()
 
         #reset previous game frames
         self.game_frames.clear()
@@ -72,7 +73,9 @@ class DisplayWindow(tk.Tk):
             gf.grid(row=0, column=1+i, sticky="nsew")
 
         #run the new game in the controller
-        self.controller.new_game(num_cols=cols, num_rows=rows, agent=agent, agent_colour=agent_colour)
+        self.controller.new_game(
+            num_cols=cols, num_rows=rows, agent=agent, agent_colour=agent_colour
+        )
 
 
 class MainMenuFrame(tk.Frame):
@@ -161,6 +164,42 @@ class MainMenuFrame(tk.Frame):
         btn_white_display.pack()
         btn_black_display.pack()
 
+        # agent selection
+        agent_options = [
+            "None",
+            "General",
+            "Basic"
+        ]
+        lbl_agent = tk.Label(self, text="Select Agent:")
+        frm_agent = tk.Frame(self)
+        self.agent_selection = tk.StringVar()
+        self.agent_selection.set("None")
+        ddm_agent = tk.OptionMenu(
+            frm_agent,
+            self.agent_selection,
+            *agent_options
+        )
+        lbl_agent_colour = tk.Label(frm_agent, text="Agent Colour:")
+        self.agent_colour = tk.StringVar(self, "w")
+        rdb_agent_white = tk.Radiobutton(
+            frm_agent,
+            variable=self.agent_colour,
+            text = "White",
+            value="w"
+        )
+        rdb_agent_black = tk.Radiobutton(
+            frm_agent,
+            variable=self.agent_colour,
+            text = "Black",
+            value="b"
+        )
+
+        # place agent selection widgets into frame
+        ddm_agent.pack()
+        lbl_agent_colour.pack()
+        rdb_agent_white.pack()
+        rdb_agent_black.pack()
+
         # place widgets into menu frame
         btn_newgame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         lbl_rows.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
@@ -169,6 +208,8 @@ class MainMenuFrame(tk.Frame):
         frm_cols.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
         lbl_displays.grid(row=5, column=0, sticky="ew", padx=5, pady=5)
         frm_displays.grid(row=6, column=0, sticky="ew", padx=5, pady=5)
+        lbl_agent.grid(row=7, column=0, sticky="ew", padx=5, pady=5)
+        frm_agent.grid(row=8, column=0, sticky="ew", padx=5, pady=5)
 
 
     def change_dim(self, incr: bool, dim : str, label: tk.Label) -> None:
