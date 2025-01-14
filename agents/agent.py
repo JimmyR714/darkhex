@@ -55,6 +55,6 @@ class Agent():
             True: When another move must be made.
             False: When no other move must be made.
         """
-        self.board[row][col] = colour
+        self.board[row-1][col-1] = colour
         #i.e. if we discovered one of their pieces
         return self.colour != colour
