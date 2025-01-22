@@ -3,6 +3,7 @@ Module for a very basic agent that
 works solely off of the rules of dark hex
 """
 from typing import Self
+from copy import deepcopy
 import agents.agent
 
 class BasicAgent(agents.agent.Agent):
@@ -14,7 +15,12 @@ class BasicAgent(agents.agent.Agent):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
         self.belief_state = BeliefState(
-            board = self.board,
+            initial_beliefs=[
+                {
+                    "prob": 1,
+                    "board": [["e"] * num_cols] * num_rows
+                }
+            ],
             agent_colour=self.colour,
             max_depth=self.MAX_DEPTH
         )
@@ -36,14 +42,60 @@ class BasicAgent(agents.agent.Agent):
 class BeliefState():
     """
     Class that represents a belief state for the agent.
-    Stores a minimal amount of information, but has some useful functions
+    Maintains a list of beliefs about our current state.
+    Each belief is a full amount of information about the board, hence applying any
+    action to a belief is deterministic based on that belief being true.
     """
-    def __init__(self, board: list[list[str]], agent_colour: str, max_depth: int):
+    def __init__(self, initial_beliefs: list[dict], agent_colour: str, max_depth: int):
         self.agent_colour = agent_colour
-        self.board = board
-        self.num_rows = len(board)
-        self.num_cols = len(board[0])
+        self.num_rows = len(initial_beliefs[0]["board"])
+        self.num_cols = len(initial_beliefs[0]["board"][0])
         self.max_depth = max_depth
+        """
+        we maintain a list of beliefs about our current state
+        each belief contains the probability of the belief being true
+        and the board represented by the belief
+        'e' means we believe the cell is empty
+        'bu' means we believe the cell is black and unseen by white
+        'bs' means we believe the cell is black and seen by white
+        'wu' means we believe the cell is white and unseen by black
+        'ws' means we believe the cell is white and seen by black
+        """
+        self.beliefs = initial_beliefs
+        #we always believe the same spaces may be empty (or containing an unseen opponent)
+        #irrespective of the list of beliefs. Hence we maintain this:
+        placable_cells : list[tuple[int, int]] = []
+        for col in range(num_cols):
+            for row in range(num_rows):
+                placable_cells.append((col, row))
+        self.placable_cells = placable_cells
+
+
+    def opponent_move(self) -> None:
+        """
+        Performs the required updates to the beliefs after an opponent has performed a move.
+        We take all of our current beliefs and include the possibilities for the opponent moving.
+        Must be called every time the opponent has moved to allow us to change our beliefs.
+        """
+        #TODO each probability of move is assumed equal in a given belief. we should take account of
+        #TODO the goals of the opponent, i.e. they should think like us in theory
+        new_beliefs = []
+        for belief in self.beliefs:
+            # if a cell is empty, they might have placed their piece there.
+            # if a cell of our colour is unseen, they might have found it
+            for row in belief["board"]:
+                for cell in row:
+                    #TODO opponent belief updates just below
+                    if cell == "e":
+                        #they might have placed their piece here
+                        pass
+                    elif cell == "wu" and self.agent_colour == "w":
+                        #they might have found our piece
+                        pass
+                    elif cell == "bu" and self.agent_colour == "b":
+                        #they might have found our piece
+                        pass
+        self.beliefs = new_beliefs
 
 
     def optimal_move(self) -> tuple[int, int]:
@@ -61,18 +113,22 @@ class BeliefState():
             # search for min value
             current_min_value = 1000000000.0
             # check each possible action
-            for action in state.actions():
-                for result in self.results(white_turn, action):
-                    # try this action, update min value if necessary
-                    current_min_value = min(
-                        current_min_value,
-                        max_value(result, alpha, beta, white_turn=not white_turn)
+            for action in state.placable_cells:
+                # try this action, update min value if necessary
+                current_min_value = min(
+                    current_min_value,
+                    max_value(
+                        self.result(white_turn, action),
+                        alpha,
+                        beta,
+                        white_turn=not white_turn
                     )
-                    # attempt pruning
-                    if current_min_value <= alpha:
-                        return current_min_value
-                    #update pruning value
-                    beta = min(beta, current_min_value)
+                )
+                # attempt pruning
+                if current_min_value <= alpha:
+                    return current_min_value
+                #update pruning value
+                beta = min(beta, current_min_value)
 
             return current_min_value
 
@@ -87,32 +143,36 @@ class BeliefState():
             # search for max value
             current_max_value = -1000000000.0
             # check each possible action
-            for action in state.actions():
-                for result in self.results(white_turn, action):
-                    # try this action, update max value if necessary
-                    current_max_value = max(
-                        current_max_value,
-                        min_value(result, alpha, beta, white_turn=not white_turn)
+            for action in state.placable_cells:
+                # try this action, update max value if necessary
+                current_max_value = max(
+                    current_max_value,
+                    min_value(
+                        self.result(white_turn, action),
+                        alpha,
+                        beta,
+                        white_turn=not white_turn
                     )
-                    # attempt pruning
-                    if current_max_value >= beta:
-                        return current_max_value
-                    # update pruning value
-                    alpha = max(alpha, current_max_value)
+                )
+                # attempt pruning
+                if current_max_value >= beta:
+                    return current_max_value
+                # update pruning value
+                alpha = max(alpha, current_max_value)
 
             return current_max_value
 
+        # start the minimax search
         white_turn = self.agent_colour=="w"
         best_action = None
         best_utility = None
-        for action in self.actions():
-            for result in self.results(white_turn, action):
-                utility_value = min_value(
-                    result, -1000000000.0, 1000000000.0, white_turn
-                )
-                if best_utility is None or utility_value > best_utility:
-                    best_action = action
-                    best_utility = utility_value
+        for action in self.placable_cells:
+            utility_value = min_value(
+                self.result(white_turn, action), -1000000000.0, 1000000000.0, white_turn
+            )
+            if best_utility is None or utility_value > best_utility:
+                best_action = action
+                best_utility = utility_value
 
         return best_action
 
@@ -134,47 +194,46 @@ class BeliefState():
             True: When another move must be made.
             False: When no other move must be made.
         """
+        #update our beliefs based on this new information
+        new_beliefs = []
+        for belief in self.beliefs:
+            if colour == self.agent_colour:
+                #we successfully placed our piece, and it is unseen
+                new_belief = belief["board"]
+                new_belief[row][col] = self.agent_colour + "u"
+                new_beliefs.append(new_belief)
+            elif colour != self.agent_colour and belief["board"][row][col] == colour + "u":
+                #we discovered one of their pieces,
+                # hence remove all beliefs where this wasn't unseen
+                new_belief = belief["board"]
+                new_belief[row][col] = colour + "s"
+                new_beliefs.append(new_belief)
+        self.beliefs = new_beliefs
+
+        #we can no longer place a piece in this cell
+        self.placable_cells.remove((col, row))
+
         #TODO maintain connected components like in abstract dark hex implementation
         return self.agent_colour != colour
 
 
-    def actions(self) -> list[tuple[int, int]]:
+    def result(self, white_turn: bool, action: tuple[int, int]) -> Self:
         """
-        Returns a list of the moves possible in the current belief state
-        Returns the action that we think is most likely to benefit us first, 
-        and least likely to benefit us last.
+        Returns the belief state reached by applying action to each of our beliefs
         """
-        #TODO add move ordering based on proximity to connected components
-        #naive implementation with no ordering
-        possible_actions = []
-        for col in range(self.num_cols):
-            for row in range(self.num_rows):
-                if self.board[row][col] == "e":
-                    possible_actions.append((col, row))
-
-        return possible_actions
-
-
-    def results(self, white_turn: bool, action: tuple[int, int]) -> list[Self]:
-        """
-        Returns the belief states reached by applying action in state
-        """
-        #return both possible boards to result from this position
-        #TODO both boards will not always be possible
-        new_board_white = self.board.copy()
-        new_board_black = self.board.copy()
-        new_board_white[action[1]][action[0]] = "w"
-        new_board_black[action[1]][action[0]] = "b"
-        return [
-            BeliefState(new_board_white,
-                        agent_colour=self.agent_colour,
-                        max_depth=self.max_depth
-            ),
-            BeliefState(new_board_black,
-                        agent_colour=self.agent_colour,
-                        max_depth=self.max_depth
-            )
-        ]
+        if white_turn:
+            colour = "w"
+        else:
+            colour = "b"
+        #create the new belief state
+        new_belief_state = BeliefState(
+            initial_beliefs=deepcopy(self.beliefs),
+            agent_colour=self.agent_colour,
+            max_depth=self.max_depth - 1
+        )
+        #play the move
+        new_belief_state.update_information(action[0], action[1], colour)
+        return new_belief_state
 
 
     def terminal_test(self) -> bool:
@@ -190,4 +249,4 @@ class BeliefState():
         """
         The utility of the belief state
         """
-        #TODO use connected components to improve utility function
+        #TODO use (virtual) connected components to improve utility function
