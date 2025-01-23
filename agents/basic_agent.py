@@ -5,6 +5,7 @@ works solely off of the rules of dark hex
 from typing import Self
 from copy import deepcopy
 import agents.agent
+import game.util as util
 
 class BasicAgent(agents.agent.Agent):
     """
@@ -14,11 +15,17 @@ class BasicAgent(agents.agent.Agent):
     def __init__(self, num_cols: int, num_rows: int, colour: str):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
+        (white_components, black_components) = util.create_default_components(
+            num_cols=num_cols,
+            num_rows=num_rows
+        )
         self.belief_state = BeliefState(
             initial_beliefs=[
                 {
                     "prob": 1,
-                    "board": [["e"] * num_cols] * num_rows
+                    "board": [["e"] * num_cols] * num_rows,
+                    "white_components": white_components,
+                    "black_components": black_components
                 }
             ],
             agent_colour=self.colour,
@@ -34,6 +41,7 @@ class BasicAgent(agents.agent.Agent):
         """
         #TODO must replace old belief state with new one?
         return self.belief_state.optimal_move()
+
 
     def update_information(self, col, row, colour):
         return self.belief_state.update_information(col, row, colour)
@@ -65,8 +73,8 @@ class BeliefState():
         #we always believe the same spaces may be empty (or containing an unseen opponent)
         #irrespective of the list of beliefs. Hence we maintain this:
         placable_cells : list[tuple[int, int]] = []
-        for col in range(num_cols):
-            for row in range(num_rows):
+        for col in range(self.num_cols):
+            for row in range(self.num_rows):
                 placable_cells.append((col, row))
         self.placable_cells = placable_cells
 
@@ -179,7 +187,7 @@ class BeliefState():
 
     def update_information(self, col: int, row: int, colour: str) -> bool:
         """
-        Recieve some updated information about the board.
+        Receive some updated information about the board.
         The agent with this belief state will call this after we make a move.
         Necessary to find out whether our move was successful.
         
@@ -208,12 +216,21 @@ class BeliefState():
                 new_belief = belief["board"]
                 new_belief[row][col] = colour + "s"
                 new_beliefs.append(new_belief)
+            # update components
+            (new_white_components, new_black_components) = util.update_components(
+                cell_pos=(col, row),
+                board=belief["board"],
+                white_components=belief["white_components"],
+                black_components=belief["black_components"],
+                colour=colour
+            )
+            belief["white_components"] = new_white_components
+            belief["black_components"] = new_black_components
         self.beliefs = new_beliefs
 
         #we can no longer place a piece in this cell
         self.placable_cells.remove((col, row))
 
-        #TODO maintain connected components like in abstract dark hex implementation
         return self.agent_colour != colour
 
 
