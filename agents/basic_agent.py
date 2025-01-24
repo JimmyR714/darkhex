@@ -4,6 +4,9 @@ works solely off of the rules of dark hex
 """
 from typing import Self
 from copy import deepcopy
+import math
+import logging
+from scipy.cluster.hierarchy import DisjointSet
 import agents.agent
 import game.util as util
 
@@ -16,7 +19,7 @@ class BasicAgent(agents.agent.Agent):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
         self.belief_state = BeliefState(
-            initial_beliefs=[Belief(num_cols, num_rows)],
+            initial_beliefs=[Belief.fresh(num_cols, num_rows)],
             agent_colour=self.colour,
             max_depth=self.MAX_DEPTH
         )
@@ -44,14 +47,43 @@ class Belief():
     A single belief within the belief state.
     Initially the empty board
     """
-    def __init__(self, num_cols: int, num_rows: int) -> None:
-        self.board = [["e"] * num_cols] * num_rows
-        self.probability = 1.0
-        (self.white_components, self.black_components) = util.create_default_components(
+    def __init__(self, board: list[list[str]], probability: float,
+                 white_components: DisjointSet, black_components: DisjointSet) -> None:
+        self.board = board
+        self.probability = probability
+        self.white_components = white_components
+        self.black_components = black_components
+
+
+    @classmethod
+    def fresh(cls, num_cols: int, num_rows: int):
+        """
+        Create a fresh belief
+        """
+        (white_components, black_components) = util.create_default_components(
             num_cols=num_cols,
             num_rows=num_rows
         )
+        return cls(
+            board = [["e"] * num_cols] * num_rows,
+            probability = 1.0,
+            white_components = white_components,
+            black_components = black_components
+        )
 
+
+    @classmethod
+    def from_belief(cls, old_belief: Self, prob_ratio: float):
+        """
+        Create a belief based on an old one. 
+        Probability is multiplied by prob_ratio
+        """
+        return cls(
+            board = old_belief.board,
+            probability = old_belief.board * prob_ratio,
+            white_components = old_belief.white_components,
+            black_components = old_belief.black_components
+        )
 
     def update_information(self, col: int, row: int, colour: str, agent_colour: str) -> None:
         """
@@ -65,22 +97,65 @@ class Belief():
             # hence remove all beliefs where this wasn't unseen
             self.board[row][col] = colour + "s"
         # update components
-        (new_white_components, new_black_components) = util.update_components(
-            cell_pos=(col, row),
+        logging.debug("Updating board at %s, %s", col, row)
+        util.update_components(
+            cell_pos=(col+1, row+1),
             board=self.board,
-            white_components=self.white_components,
-            black_components=self.black_components,
-            colour=colour
+            components=(self.white_components, self.black_components),
+            colour=colour,
+            borders=False
         )
-        self.white_components = new_white_components
-        self.black_components = new_black_components
 
 
     def utility(self) -> float:
         """
         Calculates the utility of this belief
         """
+        def component_strength(components: DisjointSet) -> float:
+            """
+            Calculates strength of the components
+            """
+            total = 0.0
+            #for now, just based on size of components
+            for component in components:
+                total += len(component)
+            return total
+
+
+        def seen_strength(colour: str) -> float:
+            """
+            Calculates strength of the seen elements on the board for colour
+            """
+            total = 0.0
+            for row in self.board:
+                for cell in row:
+                    if "u" in cell and colour in cell:
+                        #if they haven't seen our cell
+                        total += 3
+                    elif "s" in cell and util.swap_colour(colour) in cell:
+                        #if we have seen their cell
+                        total += 5
+                    elif "u" in cell and util.swap_colour(colour) in cell:
+                        #we haven't seen their cell
+                        total -= 3
+                    elif "s" in cell and colour in cell:
+                        #they have seen our cell
+                        total -= 5
+            return total
+
+
         #TODO use (virtual) connected components to improve utility function
+        #TODO use a similar evaluation function to HEXY
+        total_utility = 0.0
+        total_utility += math.log2(
+            component_strength(self.white_components) / component_strength(self.black_components)
+        )
+        total_utility += math.log2(
+            seen_strength("w") / seen_strength("b")
+        )
+
+        #return expected utility
+        return total_utility * self.probability
 
 
 class BeliefState():
@@ -124,22 +199,36 @@ class BeliefState():
         #TODO each probability of move is assumed equal in a given belief. we should take account of
         #     the goals of the opponent, i.e. they should think like us in theory
         new_beliefs = []
+        #first check which cells they've found
         for belief in self.beliefs:
-            # if a cell is empty, they might have placed their piece there.
             # if a cell of our colour is unseen, they might have found it
-            for row in belief["board"]:
-                for cell in row:
-                    #TODO opponent belief updates just below
-                    if cell == "e":
-                        #they might have placed their piece here
-                        pass
-                    elif cell == "wu" and self.agent_colour == "w":
-                        #they might have found our piece
-                        pass
+            for y, row in enumerate(belief.board):
+                for x, cell in enumerate(row):
+                    if cell == "wu" and self.agent_colour == "w":
+                        #TODO opponent can only find one piece per turn
+                        new_belief = Belief.from_belief(belief, 0.5)
+                        new_belief.update_information(x, y, "w", "b")
+                        new_beliefs.append(new_belief)
+                        new_beliefs.append(Belief.from_belief(belief, 0.5)) # update probability
                     elif cell == "bu" and self.agent_colour == "b":
                         #they might have found our piece
-                        pass
-        self.beliefs = new_beliefs
+                        new_belief = Belief.from_belief(belief, 0.5)
+                        new_belief.update_information(x, y, "b", "w")
+                        new_beliefs.append(new_belief)
+                        new_beliefs.append(Belief.from_belief(belief, 0.5)) # update probability
+                    else:
+                        new_beliefs.append(belief)
+        final_beliefs = []
+        num_cells = len(self.placable_cells)
+        # if a cell is empty, they might have placed their piece there
+        for belief in new_beliefs:
+            final_beliefs.append(belief, 1.0/num_cells)
+            for cell in self.placable_cells:
+                new_belief = Belief.from_belief(belief, 1.0/num_cells)
+                opp_colour = util.swap_colour(self.agent_colour)
+                new_belief.update_information(cell[0], cell[1], opp_colour, opp_colour)
+                final_beliefs.append(new_belief)
+        self.beliefs = final_beliefs
 
 
     def optimal_move(self) -> tuple[int, int]:
@@ -240,7 +329,7 @@ class BeliefState():
         """
         #update our beliefs based on this new information
         for belief in self.beliefs:
-            belief.update_information()
+            belief.update_information(col, row, colour, self.agent_colour)
 
         #we can no longer place a piece in this cell
         self.placable_cells.remove((col, row))

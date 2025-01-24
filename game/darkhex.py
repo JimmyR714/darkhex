@@ -61,8 +61,7 @@ class AbstractDarkHex:
             util.update_components(
                 cell_pos=(col, row),
                 board=self.board,
-                white_components=self.white_components,
-                black_components=self.black_components,
+                components=(self.white_components, self.black_components),
                 colour=colour
             )  # update components
             logging.info("%s played at (%s, %s)",
@@ -85,9 +84,9 @@ class AbstractDarkHex:
         Restart the game with the same board dimensions
         """
         # reset board contents
-        self.board = self._create_board()
-        self.black_board = self._create_board()
-        self.white_board = self._create_board()
+        self.board = util.create_board(num_cols=self.cols, num_rows=self.rows)
+        self.black_board = util.create_board(num_cols=self.cols, num_rows=self.rows)
+        self.white_board = util.create_board(num_cols=self.cols, num_rows=self.rows)
 
         # revert to correct first turn
         self.turn = self.first_turn
@@ -98,17 +97,6 @@ class AbstractDarkHex:
         )
 
         logging.info("Board reset")
-
-
-    def _create_board(self) -> list[list[str]]:
-        """
-        Create a starting board of size cols+1 x rows+1
-        The top and bottom rows are black, the left and right columns are white
-        """
-        row = ["w"] + ["b" for i in range(self.cols)] + ["w"]
-        return [row] + [
-            ["w"] + ["e" for i in range(self.cols)] + ["w"] for j in range(self.rows)
-        ] + [row]
 
 
     def _get_board(self, colour : str) -> list[list[str]]:

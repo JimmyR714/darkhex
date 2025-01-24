@@ -54,15 +54,8 @@ def create_default_components(num_cols: int, num_rows: int) -> tuple[DisjointSet
     Returns (white_components, black_components)
     """
     # set starting components
-    black_components = DisjointSet([])
     white_components = DisjointSet([])
-    # initial black components are top and bottom rows
-    for x in range(1,num_cols+1):
-        black_components.add((x, 0))
-        black_components.merge((1,0), (x,0))
-        black_components.add((x, num_rows+1))
-        black_components.merge((1, num_rows+1), (x, num_rows+1))
-
+    black_components = DisjointSet([])
     # initial white components are left and right columns
     for y in range(num_rows+2):
         white_components.add((0,y))
@@ -70,28 +63,41 @@ def create_default_components(num_cols: int, num_rows: int) -> tuple[DisjointSet
         white_components.add((num_cols+1, y))
         white_components.merge((num_cols+1,0), (num_cols+1, y))
 
-    return (black_components, white_components)
+    # initial black components are top and bottom rows
+    for x in range(1,num_cols+1):
+        black_components.add((x, 0))
+        black_components.merge((1,0), (x,0))
+        black_components.add((x, num_rows+1))
+        black_components.merge((1, num_rows+1), (x, num_rows+1))
+
+    return (white_components, black_components)
 
 
 def update_components(cell_pos: tuple[int, int], board: list[list[str]],
-                      white_components: DisjointSet, black_components: DisjointSet,
-                      colour : str) -> tuple[DisjointSet, DisjointSet]:
+                      components: tuple[DisjointSet, DisjointSet], colour : str,
+                      borders = True) -> None:
     """
     Update the connected components of the given colour to include the new cell (col,row).
     
     """
-    col = cell_pos[0]
-    row = cell_pos[1]
+    if borders:
+        full_board = board
+        col = cell_pos[0]
+        row = cell_pos[1]
+    else:
+        full_board = add_borders(board)
+        col = cell_pos[0] + 1
+        row = cell_pos[1] + 1
     logging.debug("Attempting to merge components surrounding (%s, %s)", col, row)
     match colour:
         case "w":
-            components = white_components
+            chosen_components = components[0]
         case "b":
-            components = black_components
+            chosen_components = components[1]
         case _:
             raise ValueError("Invalid colour given to update_components")
 
-    components.add((col,row))
+    chosen_components.add((col,row))
     # attempt to connect to each matching colour in surrounding hex
     adj = [
         (col-1, row), (col, row-1), (col+1, row-1),
@@ -99,14 +105,12 @@ def update_components(cell_pos: tuple[int, int], board: list[list[str]],
     ]
     for cell in adj:
         # if adjacent cell is of the same colour
-        if colour in board[cell[1]][cell[0]]:
+        if colour in full_board[cell[1]][cell[0]]:
             # connect the components
-            components.merge((col,row),cell)
+            chosen_components.merge((col,row),cell)
             logging.debug("(%s, %s) and %s %s components merged",
                             col, row, cell, colour_map[colour]
             )
-
-    return (white_components, black_components)
 
 
 def win_check(num_rows: int, num_cols: int, white_components: DisjointSet,
@@ -126,3 +130,26 @@ def win_check(num_rows: int, num_cols: int, white_components: DisjointSet,
         return "white_win"
     else:
         return "none"
+
+
+def add_borders(board: list[list[str]]) -> list[list[str]]:
+    """
+    Add borders to a board with none
+    """
+    num_rows = len(board)
+    num_cols = len(board[0])
+    row = ["w"] + ["b" for i in range(num_cols)] + ["w"]
+    return [row] + [
+        ["w"] + board[j] + ["w"] for j in range(num_rows)
+    ] + [row]
+
+
+def create_board(num_cols: int, num_rows: int) -> list[list[str]]:
+    """
+    Create a starting board of size cols+1 x rows+1
+    The top and bottom rows are black, the left and right columns are white
+    """
+    row = ["w"] + ["b" for i in range(num_cols)] + ["w"]
+    return [row] + [
+        ["w"] + ["e" for i in range(num_cols)] + ["w"] for j in range(num_rows)
+    ] + [row]
