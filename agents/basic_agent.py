@@ -15,19 +15,8 @@ class BasicAgent(agents.agent.Agent):
     def __init__(self, num_cols: int, num_rows: int, colour: str):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
-        (white_components, black_components) = util.create_default_components(
-            num_cols=num_cols,
-            num_rows=num_rows
-        )
         self.belief_state = BeliefState(
-            initial_beliefs=[
-                {
-                    "prob": 1,
-                    "board": [["e"] * num_cols] * num_rows,
-                    "white_components": white_components,
-                    "black_components": black_components
-                }
-            ],
+            initial_beliefs=[Belief(num_cols, num_rows)],
             agent_colour=self.colour,
             max_depth=self.MAX_DEPTH
         )
@@ -39,12 +28,59 @@ class BasicAgent(agents.agent.Agent):
         Moves are determined by the one that results in the belief state with the 
         highest probability of our success.
         """
-        #TODO must replace old belief state with new one?
         return self.belief_state.optimal_move()
 
 
-    def update_information(self, col, row, colour):
-        return self.belief_state.update_information(col, row, colour)
+    def update_information(self, col: int, row: int, colour: str):
+        another_move = self.belief_state.update_information(col, row, colour)
+        if not another_move:
+            #allow opponent's move update
+            self.belief_state.opponent_move()
+        return another_move
+
+
+class Belief():
+    """
+    A single belief within the belief state.
+    Initially the empty board
+    """
+    def __init__(self, num_cols: int, num_rows: int) -> None:
+        self.board = [["e"] * num_cols] * num_rows
+        self.probability = 1.0
+        (self.white_components, self.black_components) = util.create_default_components(
+            num_cols=num_cols,
+            num_rows=num_rows
+        )
+
+
+    def update_information(self, col: int, row: int, colour: str, agent_colour: str) -> None:
+        """
+        Updates the board and components of this belief
+        """
+        if colour == agent_colour:
+            #we successfully placed our piece, and it is unseen
+            self.board[row][col] = agent_colour + "u"
+        elif colour != agent_colour and self.board[row][col] == colour + "u":
+            #we discovered one of their pieces,
+            # hence remove all beliefs where this wasn't unseen
+            self.board[row][col] = colour + "s"
+        # update components
+        (new_white_components, new_black_components) = util.update_components(
+            cell_pos=(col, row),
+            board=self.board,
+            white_components=self.white_components,
+            black_components=self.black_components,
+            colour=colour
+        )
+        self.white_components = new_white_components
+        self.black_components = new_black_components
+
+
+    def utility(self) -> float:
+        """
+        Calculates the utility of this belief
+        """
+        #TODO use (virtual) connected components to improve utility function
 
 
 class BeliefState():
@@ -54,10 +90,10 @@ class BeliefState():
     Each belief is a full amount of information about the board, hence applying any
     action to a belief is deterministic based on that belief being true.
     """
-    def __init__(self, initial_beliefs: list[dict], agent_colour: str, max_depth: int):
+    def __init__(self, initial_beliefs: list[Belief], agent_colour: str, max_depth: int):
         self.agent_colour = agent_colour
-        self.num_rows = len(initial_beliefs[0]["board"])
-        self.num_cols = len(initial_beliefs[0]["board"][0])
+        self.num_rows = len(initial_beliefs[0].board)
+        self.num_cols = len(initial_beliefs[0].board[0])
         self.max_depth = max_depth
         """
         we maintain a list of beliefs about our current state
@@ -86,7 +122,7 @@ class BeliefState():
         Must be called every time the opponent has moved to allow us to change our beliefs.
         """
         #TODO each probability of move is assumed equal in a given belief. we should take account of
-        #TODO the goals of the opponent, i.e. they should think like us in theory
+        #     the goals of the opponent, i.e. they should think like us in theory
         new_beliefs = []
         for belief in self.beliefs:
             # if a cell is empty, they might have placed their piece there.
@@ -203,30 +239,8 @@ class BeliefState():
             False: When no other move must be made.
         """
         #update our beliefs based on this new information
-        new_beliefs = []
         for belief in self.beliefs:
-            if colour == self.agent_colour:
-                #we successfully placed our piece, and it is unseen
-                new_belief = belief["board"]
-                new_belief[row][col] = self.agent_colour + "u"
-                new_beliefs.append(new_belief)
-            elif colour != self.agent_colour and belief["board"][row][col] == colour + "u":
-                #we discovered one of their pieces,
-                # hence remove all beliefs where this wasn't unseen
-                new_belief = belief["board"]
-                new_belief[row][col] = colour + "s"
-                new_beliefs.append(new_belief)
-            # update components
-            (new_white_components, new_black_components) = util.update_components(
-                cell_pos=(col, row),
-                board=belief["board"],
-                white_components=belief["white_components"],
-                black_components=belief["black_components"],
-                colour=colour
-            )
-            belief["white_components"] = new_white_components
-            belief["black_components"] = new_black_components
-        self.beliefs = new_beliefs
+            belief.update_information()
 
         #we can no longer place a piece in this cell
         self.placable_cells.remove((col, row))
@@ -266,4 +280,4 @@ class BeliefState():
         """
         The utility of the belief state
         """
-        #TODO use (virtual) connected components to improve utility function
+        return sum([b.utility() for b in self.beliefs])
