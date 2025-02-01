@@ -80,14 +80,12 @@ def update_components(cell_pos: tuple[int, int], board: list[list[str]],
     Update the connected components of the given colour to include the new cell (col,row).
     
     """
+    col = cell_pos[0]
+    row = cell_pos[1]
     if borders:
         full_board = board
-        col = cell_pos[0]
-        row = cell_pos[1]
     else:
         full_board = add_borders(board)
-        col = cell_pos[0] + 1
-        row = cell_pos[1] + 1
     logging.debug("Attempting to merge components surrounding (%s, %s)", col, row)
     match colour:
         case "w":
@@ -105,7 +103,8 @@ def update_components(cell_pos: tuple[int, int], board: list[list[str]],
     ]
     for cell in adj:
         # if adjacent cell is of the same colour
-        if colour in full_board[cell[1]][cell[0]]:
+        #TODO makeshift bug fix
+        if colour in full_board[cell[1]][cell[0]] and (cell[1], cell[0]) in chosen_components:
             # connect the components
             chosen_components.merge((col,row),cell)
             logging.debug("(%s, %s) and %s %s components merged",

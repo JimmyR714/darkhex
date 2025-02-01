@@ -18,9 +18,10 @@ class BasicAgent(agents.agent.Agent):
     def __init__(self, num_cols: int, num_rows: int, colour: str):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
-        self.belief_state = BeliefState(
-            initial_beliefs=[Belief.fresh(num_cols, num_rows)],
-            agent_colour=self.colour,
+        self.belief_state = BeliefState.fresh(
+            num_cols=num_cols, 
+            num_rows=num_rows, 
+            agent_colour=colour,
             max_depth=self.MAX_DEPTH
         )
 
@@ -165,10 +166,11 @@ class BeliefState():
     Each belief is a full amount of information about the board, hence applying any
     action to a belief is deterministic based on that belief being true.
     """
-    def __init__(self, initial_beliefs: list[Belief], agent_colour: str, max_depth: int):
+    def __init__(self, beliefs: list[Belief], agent_colour: str, 
+                 max_depth: int, placeable_cells: list[tuple[int,int]]):
         self.agent_colour = agent_colour
-        self.num_rows = len(initial_beliefs[0].board)
-        self.num_cols = len(initial_beliefs[0].board[0])
+        self.num_rows = len(beliefs[0].board)
+        self.num_cols = len(beliefs[0].board[0])
         self.max_depth = max_depth
         """
         we maintain a list of beliefs about our current state
@@ -180,15 +182,41 @@ class BeliefState():
         'wu' means we believe the cell is white and unseen by black
         'ws' means we believe the cell is white and seen by black
         """
-        self.beliefs = initial_beliefs
+        self.beliefs = beliefs
         #we always believe the same spaces may be empty (or containing an unseen opponent)
         #irrespective of the list of beliefs. Hence we maintain this:
-        placable_cells : list[tuple[int, int]] = []
-        for col in range(self.num_cols):
-            for row in range(self.num_rows):
-                placable_cells.append((col, row))
-        self.placable_cells = placable_cells
+        self.placeable_cells = placeable_cells
 
+
+    @classmethod
+    def fresh(cls, num_cols: int, num_rows: int, agent_colour: str, max_depth: int):
+        """
+        Define a fresh belief state
+        """
+        placeable_cells : list[tuple[int, int]] = []
+        for col in range(num_cols):
+            for row in range(num_rows):
+                placeable_cells.append((col, row))
+        return cls(
+            beliefs=[Belief.fresh(num_cols, num_rows)],
+            agent_colour=agent_colour,
+            max_depth=max_depth,
+            placeable_cells=placeable_cells
+        )
+
+
+    @classmethod
+    def from_state(cls, beliefs: list[Belief], placeable_cells: list[tuple[int, int]],
+                   agent_colour: str, max_depth: int):
+        """
+        Define a belief state from a previous one
+        """
+        return cls(
+            beliefs=beliefs,
+            agent_colour=agent_colour,
+            max_depth=max_depth,
+            placeable_cells=deepcopy(placeable_cells)
+        )
 
     def opponent_move(self) -> None:
         """
@@ -219,11 +247,11 @@ class BeliefState():
                     else:
                         new_beliefs.append(belief)
         final_beliefs = []
-        num_cells = len(self.placable_cells)
+        num_cells = len(self.placeable_cells)
         # if a cell is empty, they might have placed their piece there
         for belief in new_beliefs:
             final_beliefs.append(belief, 1.0/num_cells)
-            for cell in self.placable_cells:
+            for cell in self.placeable_cells:
                 new_belief = Belief.from_belief(belief, 1.0/num_cells)
                 opp_colour = util.swap_colour(self.agent_colour)
                 new_belief.update_information(cell[0], cell[1], opp_colour, opp_colour)
@@ -246,7 +274,7 @@ class BeliefState():
             # search for min value
             current_min_value = 1000000000.0
             # check each possible action
-            for action in state.placable_cells:
+            for action in state.placeable_cells:
                 # try this action, update min value if necessary
                 current_min_value = min(
                     current_min_value,
@@ -276,7 +304,7 @@ class BeliefState():
             # search for max value
             current_max_value = -1000000000.0
             # check each possible action
-            for action in state.placable_cells:
+            for action in state.placeable_cells:
                 # try this action, update max value if necessary
                 current_max_value = max(
                     current_max_value,
@@ -299,7 +327,7 @@ class BeliefState():
         white_turn = self.agent_colour=="w"
         best_action = None
         best_utility = None
-        for action in self.placable_cells:
+        for action in self.placeable_cells:
             utility_value = min_value(
                 self.result(white_turn, action), -1000000000.0, 1000000000.0, white_turn
             )
@@ -328,11 +356,12 @@ class BeliefState():
             False: When no other move must be made.
         """
         #update our beliefs based on this new information
+        logging.debug("Updating belief state with move (%s, %s), %s", col, row, colour)
         for belief in self.beliefs:
             belief.update_information(col, row, colour, self.agent_colour)
 
         #we can no longer place a piece in this cell
-        self.placable_cells.remove((col, row))
+        self.placeable_cells.remove((col, row))
 
         return self.agent_colour != colour
 
@@ -346,13 +375,16 @@ class BeliefState():
         else:
             colour = "b"
         #create the new belief state
-        new_belief_state = BeliefState(
-            initial_beliefs=deepcopy(self.beliefs),
+        logging.debug("Creating new belief state from current state")
+        new_belief_state = BeliefState.from_state(
+            beliefs=deepcopy(self.beliefs),
             agent_colour=self.agent_colour,
-            max_depth=self.max_depth - 1
+            max_depth=self.max_depth-1,
+            placeable_cells=self.placeable_cells
         )
         #play the move
-        new_belief_state.update_information(action[0], action[1], colour)
+        new_belief_state.update_information(col=action[0], row=action[1], colour=colour)
+        logging.debug("Belief state created")
         return new_belief_state
 
 
@@ -361,7 +393,8 @@ class BeliefState():
         Determine whether we should terminate the search
         """
         #TODO add win check
-        if self.max_depth == 0:
+        logging.debug(("Terminal test with max depth", self.max_depth))
+        if self.max_depth <= 0:
             return True
 
 
