@@ -58,60 +58,25 @@ class AbstractDarkHex:
             self.board[row][col] = colour
             self._get_board(colour)[row][col] = colour
             self.turn = util.swap_colour(colour)  # swap turn
-            self.update_components(row, col, colour)  # update components
+            util.update_components(
+                cell_pos=(col, row),
+                board=self.board,
+                components=(self.white_components, self.black_components),
+                colour=colour
+            )  # update components
             logging.info("%s played at (%s, %s)",
                          util.colour_map[colour], col, row)
-            win_check = self.win_check()
+            win_check = util.win_check(
+                self.rows,
+                self.cols,
+                self.white_components,
+                self.black_components
+            )
             logging.info("Result of win_check is: %s", win_check)
             if win_check != "none":
                 return win_check
             else:
                 return "placed"
-    #TODO bug where black wins but it isnt registered. shape like <
-
-    def win_check(self) -> str:
-        """
-        Check if the board is in a winning position for some player.
-        Returns:
-            "black_win" if black has won
-            "white_win" if white has won
-            "none" if nobody has won
-        """
-        #check if the two black rows are connected or the two white columns are connected
-        logging.info("Performing a win check")
-        if self.black_components.connected((1, 0), (1, self.rows+1)):
-            return "black_win"
-        elif self.white_components.connected((0, 1), (self.cols+1, 1)):
-            return "white_win"
-        else:
-            return "none"
-
-    def update_components(self, row : int, col : int, colour : str) -> None:
-        """
-        Update the connected components of the given colour to include the new cell (col,row)
-        """
-        logging.debug("Attempting to merge components surrounding (%s, %s)", col, row)
-        match colour:
-            case "w":
-                components = self.white_components
-            case "b":
-                components = self.black_components
-            case _:
-                raise ValueError("Invalid colour given to update_components")
-
-        components.add((col,row))
-        # attempt to connect to each matching colour in surrounding hex
-        adj = [
-            (col-1, row), (col, row-1), (col+1, row-1),
-            (col+1, row), (col, row+1), (col-1,row+1)
-        ]
-        for cell in adj:
-            # if adjacent cell is of the same colour
-            if self.board[cell[1]][cell[0]] == colour:
-                # connect the components
-                components.merge((col,row),cell)
-                logging.debug("(%s, %s) and %s %s components merged", 
-                              col, row, cell, util.colour_map[colour])
 
 
     def reset_board(self) -> None:
@@ -119,42 +84,19 @@ class AbstractDarkHex:
         Restart the game with the same board dimensions
         """
         # reset board contents
-        self.board = self._create_board()
-        self.black_board = self._create_board()
-        self.white_board = self._create_board()
+        self.board = util.create_board(num_cols=self.cols, num_rows=self.rows)
+        self.black_board = util.create_board(num_cols=self.cols, num_rows=self.rows)
+        self.white_board = util.create_board(num_cols=self.cols, num_rows=self.rows)
 
         # revert to correct first turn
         self.turn = self.first_turn
 
-        # set starting components
-        self.black_components = DisjointSet([])
-        self.white_components = DisjointSet([])
-        # initial black components are top and bottom rows
-        for x in range(1,self.cols+1):
-            self.black_components.add((x, 0))
-            self.black_components.merge((1,0), (x,0))
-            self.black_components.add((x, self.rows+1))
-            self.black_components.merge((1, self.rows+1), (x, self.rows+1))
-
-        # initial white components are left and right columns
-        for y in range(self.rows+2):
-            self.white_components.add((0,y))
-            self.white_components.merge((0,0), (0,y))
-            self.white_components.add((self.cols+1, y))
-            self.white_components.merge((self.cols+1,0), (self.cols+1, y))
+        (self.white_components, self.black_components) = util.create_default_components(
+            self.cols,
+            self.rows
+        )
 
         logging.info("Board reset")
-
-
-    def _create_board(self) -> list[list[str]]:
-        """
-        Create a starting board of size cols+1 x rows+1
-        The top and bottom rows are black, the left and right columns are white
-        """
-        row = ["w"] + ["b" for i in range(self.cols)] + ["w"]
-        return [row] + [
-            ["w"] + ["e" for i in range(self.cols)] + ["w"] for j in range(self.rows)
-        ] + [row]
 
 
     def _get_board(self, colour : str) -> list[list[str]]:
