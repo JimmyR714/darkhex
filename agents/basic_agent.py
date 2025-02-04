@@ -14,7 +14,8 @@ class BasicAgent(agents.agent.Agent):
     """
     Basic agent that uses the rules of dark hex, but no advanced techniques.
     """
-    MAX_DEPTH = 2
+    MAX_DEPTH = 3
+    MAX_BELIEFS = 20
     def __init__(self, num_cols: int, num_rows: int, colour: str):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
@@ -22,7 +23,8 @@ class BasicAgent(agents.agent.Agent):
             num_cols=num_cols,
             num_rows=num_rows,
             agent_colour=colour,
-            max_depth=self.MAX_DEPTH
+            max_depth=self.MAX_DEPTH,
+            max_beliefs=self.MAX_BELIEFS
         )
 
 
@@ -155,6 +157,10 @@ class Belief():
             seen_strength("w") / seen_strength("b")
         )
 
+        #TODO temporary test to check utility function works
+        if "w" in self.board[2][2]:
+            total_utility += 10000.0
+
         #return expected utility
         return total_utility * self.probability
 
@@ -166,12 +172,13 @@ class BeliefState():
     Each belief is a full amount of information about the board, hence applying any
     action to a belief is deterministic based on that belief being true.
     """
-    def __init__(self, beliefs: list[Belief], agent_colour: str, 
-                 max_depth: int, placeable_cells: list[tuple[int,int]]):
+    def __init__(self, beliefs: list[Belief], agent_colour: str,
+                 max_depth: int, max_beliefs: int, placeable_cells: list[tuple[int,int]]):
         self.agent_colour = agent_colour
         self.num_rows = len(beliefs[0].board)
         self.num_cols = len(beliefs[0].board[0])
         self.max_depth = max_depth
+        self.max_beliefs = max_beliefs
         """
         we maintain a list of beliefs about our current state
         each belief contains the probability of the belief being true
@@ -189,7 +196,8 @@ class BeliefState():
 
 
     @classmethod
-    def fresh(cls, num_cols: int, num_rows: int, agent_colour: str, max_depth: int):
+    def fresh(cls, num_cols: int, num_rows: int, agent_colour: str,
+              max_depth: int, max_beliefs: int):
         """
         Define a fresh belief state
         """
@@ -202,13 +210,14 @@ class BeliefState():
             beliefs=[Belief.fresh(num_cols, num_rows)],
             agent_colour=agent_colour,
             max_depth=max_depth,
+            max_beliefs=max_beliefs,
             placeable_cells=placeable_cells
         )
 
 
     @classmethod
     def from_state(cls, beliefs: list[Belief], placeable_cells: list[tuple[int, int]],
-                   agent_colour: str, max_depth: int):
+                   agent_colour: str, max_depth: int, max_beliefs: int):
         """
         Define a belief state from a previous one
         """
@@ -217,8 +226,10 @@ class BeliefState():
             beliefs=beliefs,
             agent_colour=agent_colour,
             max_depth=max_depth,
+            max_beliefs=max_beliefs,
             placeable_cells=deepcopy(placeable_cells)
         )
+
 
     def opponent_move(self) -> None:
         """
@@ -228,8 +239,8 @@ class BeliefState():
         """
         #TODO each probability of move is assumed equal in a given belief. we should take account of
         #     the goals of the opponent, i.e. they should think like us in theory
-        new_beliefs = []
         logging.debug("Calculating opponent move")
+        new_beliefs = []
         #first check which cells they've found
         for belief in self.beliefs:
             # if a cell of our colour is unseen, they might have found it
@@ -261,6 +272,18 @@ class BeliefState():
                 new_belief.update_information(cell[0], cell[1], opp_colour, opp_colour)
                 final_beliefs.append(new_belief)
         self.beliefs = final_beliefs
+
+        #reduce the number of beliefs
+        self.reduce_beliefs()
+
+
+    def ordered_move_list(self) -> list[tuple[int, int, float]]:
+        """
+        Returns the list of expected opponent moves from most probable to least.
+        Uses the min/max search to find the value of each action and then assign
+        probabilities based on action value.
+        """
+        #TODO, implement this to allow opponent probabilities. may need to store opponent beliefs?
 
 
     def optimal_move(self) -> tuple[int, int]:
@@ -407,6 +430,7 @@ class BeliefState():
             beliefs=deepcopy(self.beliefs),
             agent_colour=self.agent_colour,
             max_depth=self.max_depth-1,
+            max_beliefs=self.max_beliefs,
             placeable_cells=self.placeable_cells
         )
         #play the move
@@ -423,6 +447,17 @@ class BeliefState():
         logging.debug(("Terminal test with max depth", self.max_depth))
         if self.max_depth <= 0:
             return True
+
+
+    def reduce_beliefs(self) -> None:
+        """
+        Reduces beliefs so that we only maintain up to max_beliefs.
+        Keep only the beliefs with the highest probability
+        """
+        #TODO maybe add probability threshold as alternative option
+        self.beliefs = sorted(
+            self.beliefs, key=lambda b: b.probability, reverse=True
+        )[:self.max_beliefs]
 
 
     def utility(self) -> float:

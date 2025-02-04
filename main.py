@@ -114,7 +114,7 @@ def main():
     """
     Create the display for the game and run the mainloop
     """
-    #logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
     controller = Controller()
     controller.make_window()
 
