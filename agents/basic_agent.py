@@ -14,13 +14,13 @@ class BasicAgent(agents.agent.Agent):
     """
     Basic agent that uses the rules of dark hex, but no advanced techniques.
     """
-    MAX_DEPTH = 3
+    MAX_DEPTH = 2
     def __init__(self, num_cols: int, num_rows: int, colour: str):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, colour)
         self.belief_state = BeliefState.fresh(
-            num_cols=num_cols, 
-            num_rows=num_rows, 
+            num_cols=num_cols,
+            num_rows=num_rows,
             agent_colour=colour,
             max_depth=self.MAX_DEPTH
         )
@@ -81,7 +81,7 @@ class Belief():
         """
         return cls(
             board = old_belief.board,
-            probability = old_belief.board * prob_ratio,
+            probability = old_belief.probability * prob_ratio,
             white_components = old_belief.white_components,
             black_components = old_belief.black_components
         )
@@ -116,7 +116,7 @@ class Belief():
             """
             Calculates strength of the components
             """
-            total = 0.0
+            total = 1.0
             #for now, just based on size of components
             for component in components:
                 total += len(component)
@@ -127,7 +127,7 @@ class Belief():
             """
             Calculates strength of the seen elements on the board for colour
             """
-            total = 0.0
+            total = 1.0
             for row in self.board:
                 for cell in row:
                     if "u" in cell and colour in cell:
@@ -148,10 +148,10 @@ class Belief():
         #TODO use (virtual) connected components to improve utility function
         #TODO use a similar evaluation function to HEXY
         total_utility = 0.0
-        total_utility += math.log2(
+        total_utility += math.tanh(
             component_strength(self.white_components) / component_strength(self.black_components)
         )
-        total_utility += math.log2(
+        total_utility += math.tanh(
             seen_strength("w") / seen_strength("b")
         )
 
@@ -193,6 +193,7 @@ class BeliefState():
         """
         Define a fresh belief state
         """
+        logging.debug("Creating belief state from fresh")
         placeable_cells : list[tuple[int, int]] = []
         for col in range(num_cols):
             for row in range(num_rows):
@@ -211,6 +212,7 @@ class BeliefState():
         """
         Define a belief state from a previous one
         """
+        logging.debug("Creating belief state from current state")
         return cls(
             beliefs=beliefs,
             agent_colour=agent_colour,
@@ -227,6 +229,7 @@ class BeliefState():
         #TODO each probability of move is assumed equal in a given belief. we should take account of
         #     the goals of the opponent, i.e. they should think like us in theory
         new_beliefs = []
+        logging.debug("Calculating opponent move")
         #first check which cells they've found
         for belief in self.beliefs:
             # if a cell of our colour is unseen, they might have found it
@@ -246,11 +249,12 @@ class BeliefState():
                         new_beliefs.append(Belief.from_belief(belief, 0.5)) # update probability
                     else:
                         new_beliefs.append(belief)
+        #TODO bug when there are no placable cells, maybe fix by adding win condition?
         final_beliefs = []
         num_cells = len(self.placeable_cells)
         # if a cell is empty, they might have placed their piece there
         for belief in new_beliefs:
-            final_beliefs.append(belief, 1.0/num_cells)
+            final_beliefs.append(Belief.from_belief(belief, 1.0/num_cells))
             for cell in self.placeable_cells:
                 new_belief = Belief.from_belief(belief, 1.0/num_cells)
                 opp_colour = util.swap_colour(self.agent_colour)
@@ -264,78 +268,102 @@ class BeliefState():
         Returns the optimal move in the current belief state
         Uses alpha-beta pruned minimax search
         """
-        def min_value(state: BeliefState, alpha: float, beta: float, white_turn: bool) -> float:
-            """
-            Returns the minimum expected utility value in state
-            """
-            # check for termination
-            if state.terminal_test():
-                return state.utility()
-            # search for min value
-            current_min_value = 1000000000.0
-            # check each possible action
-            for action in state.placeable_cells:
-                # try this action, update min value if necessary
-                current_min_value = min(
-                    current_min_value,
-                    max_value(
-                        self.result(white_turn, action),
-                        alpha,
-                        beta,
-                        white_turn=not white_turn
-                    )
-                )
-                # attempt pruning
-                if current_min_value <= alpha:
-                    return current_min_value
-                #update pruning value
-                beta = min(beta, current_min_value)
-
-            return current_min_value
-
-
-        def max_value(state: BeliefState, alpha: float, beta: float, white_turn: bool) -> float:
-            """
-            Returns the maximum expected utility value in state
-            """
-            # check for termination
-            if state.terminal_test():
-                return state.utility()
-            # search for max value
-            current_max_value = -1000000000.0
-            # check each possible action
-            for action in state.placeable_cells:
-                # try this action, update max value if necessary
-                current_max_value = max(
-                    current_max_value,
-                    min_value(
-                        self.result(white_turn, action),
-                        alpha,
-                        beta,
-                        white_turn=not white_turn
-                    )
-                )
-                # attempt pruning
-                if current_max_value >= beta:
-                    return current_max_value
-                # update pruning value
-                alpha = max(alpha, current_max_value)
-
-            return current_max_value
-
         # start the minimax search
         white_turn = self.agent_colour=="w"
         best_action = None
         best_utility = None
         for action in self.placeable_cells:
-            utility_value = min_value(
-                self.result(white_turn, action), -1000000000.0, 1000000000.0, white_turn
+            result = self.result(white_turn, action)
+            utility_value = result.min_value(
+                -1000000000.0, 1000000000.0, white_turn
             )
             if best_utility is None or utility_value > best_utility:
                 best_action = action
                 best_utility = utility_value
-
+        #TODO bug where this returns None on a 2x1 board
         return best_action
+
+
+    def min_value(self, alpha: float, beta: float, white_turn: bool) -> float:
+        """
+        Returns the minimum expected utility value in state
+        """
+        logging.debug(
+            "Finding minimum value for %s beliefs, alpha=%s, beta=%s, white_turn=%s",
+            len(self.beliefs),
+            alpha,
+            beta,
+            white_turn
+        )
+        # check for termination
+        if self.terminal_test():
+            logging.debug("Terminal test was successful")
+            return self.utility()
+        # search for min value
+        current_min_value = 1000000000.0
+        # check each possible action
+        logging.debug("Checking each action for min value")
+        for action in self.placeable_cells:
+            # try this action, update min value if necessary
+            result = self.result(white_turn, action)
+            result_value = result.max_value(
+                alpha,
+                beta,
+                white_turn=not white_turn
+            )
+            current_min_value = min(
+                current_min_value,
+                result_value
+            )
+            # attempt pruning
+            if current_min_value <= alpha:
+                logging.debug("Pruned by min value vs alpha")
+                return current_min_value
+            #update pruning value
+            beta = min(beta, current_min_value)
+
+        return current_min_value
+
+
+    def max_value(self, alpha: float, beta: float, white_turn: bool) -> float:
+        """
+        Returns the maximum expected utility value in state
+        """
+        logging.debug(
+            "Finding maximum value for %s beliefs, alpha=%s, beta=%s, white_turn=%s",
+            len(self.beliefs),
+            alpha,
+            beta,
+            white_turn
+        )
+        # check for termination
+        if self.terminal_test():
+            logging.debug("Terminal test was successful")
+            return self.utility()
+        # search for max value
+        current_max_value = -1000000000.0
+        # check each possible action
+        logging.debug("Checking each action for max value")
+        for action in self.placeable_cells:
+            # try this action, update max value if necessary
+            result = self.result(white_turn, action)
+            result_value = result.min_value(
+                alpha,
+                beta,
+                white_turn=not white_turn
+            )
+            current_max_value = max(
+                current_max_value,
+                result_value
+            )
+            # attempt pruning
+            if current_max_value >= beta:
+                logging.debug("Pruned by max value vs beta")
+                return current_max_value
+            # update pruning value
+            alpha = max(alpha, current_max_value)
+
+        return current_max_value
 
 
     def update_information(self, col: int, row: int, colour: str) -> bool:
@@ -375,7 +403,6 @@ class BeliefState():
         else:
             colour = "b"
         #create the new belief state
-        logging.debug("Creating new belief state from current state")
         new_belief_state = BeliefState.from_state(
             beliefs=deepcopy(self.beliefs),
             agent_colour=self.agent_colour,

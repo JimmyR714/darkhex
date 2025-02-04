@@ -104,7 +104,7 @@ def update_components(cell_pos: tuple[int, int], board: list[list[str]],
     for cell in adj:
         # if adjacent cell is of the same colour
         #TODO makeshift bug fix
-        if colour in full_board[cell[1]][cell[0]] and (cell[1], cell[0]) in chosen_components:
+        if colour in full_board[cell[1]][cell[0]] and (cell[0], cell[1]) in chosen_components:
             # connect the components
             chosen_components.merge((col,row),cell)
             logging.debug("(%s, %s) and %s %s components merged",
