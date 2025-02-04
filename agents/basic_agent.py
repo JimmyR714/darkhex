@@ -112,12 +112,14 @@ class Belief():
 
     def utility(self) -> float:
         """
-        Calculates the utility of this belief
+        Calculates the utility of this belief.
+        White is a positive utility, black is negative.
         """
         def component_strength(components: DisjointSet) -> float:
             """
             Calculates strength of the components
             """
+            #TODO use (virtual) connected components to improve utility function
             total = 1.0
             #for now, just based on size of components
             for component in components:
@@ -146,20 +148,31 @@ class Belief():
                         total -= 5
             return total
 
-
-        #TODO use (virtual) connected components to improve utility function
-        #TODO use a similar evaluation function to HEXY
-        total_utility = 0.0
-        total_utility += math.tanh(
-            component_strength(self.white_components) / component_strength(self.black_components)
+        #start with win checks
+        win_check = util.win_check(
+            num_rows=len(self.board),
+            num_cols=len(self.board[0]),
+            white_components=self.white_components,
+            black_components=self.black_components
         )
-        total_utility += math.tanh(
-            seen_strength("w") / seen_strength("b")
-        )
-
-        #TODO temporary test to check utility function works
-        if "w" in self.board[2][2]:
-            total_utility += 10000.0
+        if win_check == "none":
+            #perform an ordinary evaluation
+            #TODO use a similar evaluation function to HEXY
+            total_utility = 0.0
+            #first include component strength
+            white_component_strength = component_strength(self.white_components)
+            black_component_strength = component_strength(self.black_components)
+            total_utility += math.tanh(
+                white_component_strength / black_component_strength
+            )
+            #then include seen strength
+            total_utility += math.tanh(
+                seen_strength("w") / seen_strength("b")
+            )
+        elif win_check == "white_win":
+            total_utility = 10000.0
+        else:
+            total_utility = -10000.0
 
         #return expected utility
         return total_utility * self.probability
@@ -445,8 +458,19 @@ class BeliefState():
         """
         #TODO add win check
         logging.debug(("Terminal test with max depth", self.max_depth))
-        if self.max_depth <= 0:
+        #check whether we have reached the max depth
+        if self.max_depth == 0:
             return True
+        #check whether a player has won in any belief
+        winner = False
+        for belief in self.beliefs:
+            winner = winner or "none" != util.win_check(
+                num_rows=self.num_rows,
+                num_cols=self.num_cols,
+                white_components=belief.white_components,
+                black_components=belief.black_components
+            )
+        return winner
 
 
     def reduce_beliefs(self) -> None:
