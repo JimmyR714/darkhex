@@ -51,12 +51,12 @@ class AbstractDarkHex:
         if cell != "e":  # if the chosen cell is not empty
             logging.info("Non-empty cell %s at (%s, %s)", cell, col, row)
             # update our view, since we know where their piece is now
-            self._get_board(colour)[row][col] = self.board[row][col]  # view update
+            self.get_board(colour)[row][col] = self.board[row][col]  # view update
             return "full_" + util.colour_map[self.board[row][col]]
         else:
             # update global board and our view
             self.board[row][col] = colour
-            self._get_board(colour)[row][col] = colour
+            self.get_board(colour)[row][col] = colour
             self.turn = util.swap_colour(colour)  # swap turn
             util.update_components(
                 cell_pos=(col, row),
@@ -99,7 +99,7 @@ class AbstractDarkHex:
         logging.info("Board reset")
 
 
-    def _get_board(self, colour : str) -> list[list[str]]:
+    def get_board(self, colour : str) -> list[list[str]]:
         """
         Returns the board for a given colour
         """
@@ -109,4 +109,4 @@ class AbstractDarkHex:
             case "w":
                 return self.white_board
             case _:
-                raise ValueError("Invalid colour given to _get_board")
+                raise ValueError("Invalid colour given to get_board")
