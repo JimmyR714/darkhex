@@ -3,6 +3,7 @@ Module for the control of the program flow
 """
 
 import logging
+import agents.rl_agent
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
@@ -103,6 +104,10 @@ class Controller:
                 )
             case "Basic":
                 self.agent = agents.basic_agent.BasicAgent(
+                    num_cols=num_cols, num_rows=num_rows, colour=agent_colour
+                )
+            case "RL":
+                self.agent = agents.rl_agent.RLAgent(
                     num_cols=num_cols, num_rows=num_rows, colour=agent_colour
                 )
             case None: # no agent, a 2 player game

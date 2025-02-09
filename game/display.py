@@ -168,7 +168,8 @@ class MainMenuFrame(tk.Frame):
         agent_options = [
             "None",
             "General",
-            "Basic"
+            "Basic",
+            "RL"
         ]
         lbl_agent = tk.Label(self, text="Select Agent:")
         frm_agent = tk.Frame(self)
