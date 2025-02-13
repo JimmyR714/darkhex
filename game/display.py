@@ -11,6 +11,8 @@ import game.util as util
 
 MAX_ROWS = 11
 MAX_COLS = 11
+MAX_DEPTH = 10
+MAX_BELIEFS = 1028
 
 class DisplayWindow(tk.Tk):
     """
@@ -56,7 +58,7 @@ class DisplayWindow(tk.Tk):
             displays.append("black")
 
         # get agent selection
-        agent = self.main_menu.agent_selection.get()
+        agent = self.main_menu.agent_selection_1.get()
         if agent == "None":
             agent = None
         agent_colour = self.main_menu.agent_colour.get()
@@ -85,22 +87,25 @@ class MainMenuFrame(tk.Frame):
     """
     rows = 3
     cols = 3
+    depth = 3
+    beliefs = 20
     def __init__(self, master: DisplayWindow):
         super().__init__(master=master, relief=tk.RAISED, bd=2)
         # define widgets for main menu frame
         # new game button
         btn_newgame = tk.Button(self, text="New Game", command=master.new_game)
 
+        #TODO generalise this code, also depth and beliefs in agent menu
         # row changing
         lbl_rows = tk.Label(self, text="Rows")
         frm_rows = tk.Frame(self)
         lbl_row_value = tk.Label(master=frm_rows, text=str(self.rows))
         btn_row_decrease = tk.Button(
             master=frm_rows, text="-",
-            command=partial(self.change_dim, False, "rows", lbl_row_value)
+            command=partial(self.change_lbl, False, "rows", lbl_row_value)
         )
         btn_row_increase = tk.Button(
-            master=frm_rows, text="+", command=partial(self.change_dim, True, "rows", lbl_row_value)
+            master=frm_rows, text="+", command=partial(self.change_lbl, True, "rows", lbl_row_value)
         )
 
         #column changing
@@ -109,10 +114,10 @@ class MainMenuFrame(tk.Frame):
         lbl_col_value = tk.Label(master=frm_cols, text=str(self.cols))
         btn_col_decrease = tk.Button(
             master=frm_cols, text="-",
-            command=partial(self.change_dim, False, "cols", lbl_col_value)
+            command=partial(self.change_lbl, False, "cols", lbl_col_value)
         )
         btn_col_increase = tk.Button(
-            master=frm_cols, text="+", command=partial(self.change_dim, True, "cols", lbl_col_value)
+            master=frm_cols, text="+", command=partial(self.change_lbl, True, "cols", lbl_col_value)
         )
 
         # place row widgets into row frame
@@ -164,41 +169,45 @@ class MainMenuFrame(tk.Frame):
         btn_white_display.pack()
         btn_black_display.pack()
 
-        # agent selection
-        agent_options = [
-            "None",
-            "General",
-            "Basic"
+        #game type selection
+        game_options = [
+            "Player vs Player",
+            "Player vs Agent",
+            "Agent vs Agent"
         ]
-        lbl_agent = tk.Label(self, text="Select Agent:")
-        frm_agent = tk.Frame(self)
-        self.agent_selection = tk.StringVar()
-        self.agent_selection.set("None")
-        ddm_agent = tk.OptionMenu(
-            frm_agent,
-            self.agent_selection,
-            *agent_options
-        )
-        lbl_agent_colour = tk.Label(frm_agent, text="Agent Colour:")
-        self.agent_colour = tk.StringVar(self, "w")
-        rdb_agent_white = tk.Radiobutton(
-            frm_agent,
-            variable=self.agent_colour,
-            text = "White",
-            value="w"
-        )
-        rdb_agent_black = tk.Radiobutton(
-            frm_agent,
-            variable=self.agent_colour,
-            text = "Black",
-            value="b"
+        lbl_game_type = tk.Label(self, text="Select Game:")
+        frm_game_type = tk.Frame(self)
+        self.game_selection = tk.StringVar()
+        #change below to switch default game type
+        self.game_selection.set("Player vs Player")
+        ddm_game = tk.OptionMenu(
+            frm_game_type,
+            self.game_selection,
+            *game_options,
+            command=partial(self.update_game_menu)
         )
 
-        # place agent selection widgets into frame
-        ddm_agent.pack()
-        lbl_agent_colour.pack()
-        rdb_agent_white.pack()
-        rdb_agent_black.pack()
+        #place game selection widgets into frame
+        ddm_game.pack()
+
+        #variables used in some game types
+        self.agent_selection_1 = tk.StringVar(value="General")
+        self.agent_selection_2 = tk.StringVar(value="General")
+        self.agent_colour = tk.StringVar(value="w")
+        self.agent_settings_1 = {} #agent specific settings
+        self.agent_settings_2 = {}
+
+        #menu that appears based on game type
+        self.frm_game_settings = tk.Frame(self)
+
+        #menu that appears based on agent type
+        self.frm_agent_settings_1 = None
+        self.frm_agent_settings_2 = None
+
+        #set default agent settings
+        self.update_agent_menu("General", 1)
+        self.update_agent_menu("General", 2)
+
 
         # place widgets into menu frame
         btn_newgame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
@@ -208,24 +217,156 @@ class MainMenuFrame(tk.Frame):
         frm_cols.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
         lbl_displays.grid(row=5, column=0, sticky="ew", padx=5, pady=5)
         frm_displays.grid(row=6, column=0, sticky="ew", padx=5, pady=5)
-        lbl_agent.grid(row=7, column=0, sticky="ew", padx=5, pady=5)
-        frm_agent.grid(row=8, column=0, sticky="ew", padx=5, pady=5)
+        lbl_game_type.grid(row=7, column=0, sticky="ew", padx=5, pady=5)
+        frm_game_type.grid(row=8, column=0, sticky="ew", padx=5, pady=5)
+        self.frm_game_settings.grid(row=9, column=0, sticky="ew", padx=5, pady=5)
 
 
-    def change_dim(self, incr: bool, dim : str, label: tk.Label) -> None:
+    def change_lbl(self, incr: bool, dim : str, label: tk.Label) -> None:
         """
-        Change the value of the dimensions for the game
+        Change the value of a label
         """
         match dim:
             case "rows":
                 self.rows = min(max(self.rows + (2*int(incr)-1), 1), MAX_ROWS)
                 x = self.rows
             case "cols":
-                self.cols = min(max(self.cols + (2*int(incr)-1), 1), MAX_ROWS)
-                x = self.cols
+                x = self.cols = min(max(self.cols + (2*int(incr)-1), 1), MAX_COLS)
+            case "depth":
+                x = self.depth = min(max(self.cols + (2*int(incr)-1), 1), MAX_DEPTH)
+            case "beliefs":
+                #this one doubles and halves each click
+                x = self.beliefs = min(max(self.cols + (int(incr)+1)/2, 1), MAX_BELIEFS)
 
         #update the correct label with the new text
         label["text"] = f"{x}"
+
+
+    def update_game_menu(self, game_type: str):
+        """
+        Change the menus that display once we change our game type selection
+        """
+        for widget in self.frm_game_settings.winfo_children():
+            widget.destroy()
+        # agent selection
+        agent_options = [
+            "General",
+            "Basic",
+        ]
+        match game_type:
+            case "Player vs Player":
+                #place widgets required for a player vs player game
+                pass
+            case "Player vs Agent":
+                #place widgets required for a single agent selection
+                tk.Label(self.frm_game_settings, text="Select Agent:").pack()
+                tk.OptionMenu(
+                    self.frm_game_settings,
+                    self.agent_selection_1,
+                    *agent_options,
+                    command=partial(self.update_agent_menu, 1)
+                ).pack()
+                self.frm_agent_settings_1 = tk.Frame(self.frm_game_settings)
+                self.frm_agent_settings_1.pack()
+                self.update_agent_menu("General", 1)
+                tk.Label(self.frm_game_settings, text="Agent Colour:").pack()
+                tk.Radiobutton(
+                    self.frm_game_settings,
+                    variable=self.agent_colour,
+                    text = "White",
+                    value="w"
+                ).pack()
+                tk.Radiobutton(
+                    self.frm_game_settings,
+                    variable=self.agent_colour,
+                    text = "Black",
+                    value="b"
+                ).pack()
+            case "Agent vs Agent":
+                #place widgets required for two agent selections
+                tk.Label(self.frm_game_settings, text="Select Agent 1:").pack()
+                tk.OptionMenu(
+                    self.frm_game_settings,
+                    self.agent_selection_1,
+                    *agent_options,
+                    command=partial(self.update_agent_menu, 1)
+                ).pack()
+                self.frm_agent_settings_1 = tk.Frame(self.frm_game_settings)
+                self.frm_agent_settings_1.pack()
+                self.update_agent_menu("General", 1)
+                tk.Label(self.frm_game_settings, text="Select Agent 2:").pack()
+                tk.OptionMenu(
+                    self.frm_game_settings,
+                    self.agent_selection_2,
+                    *agent_options,
+                    command=partial(self.update_agent_menu, 2)
+                ).pack()
+                self.frm_agent_settings_2 = tk.Frame(self.frm_game_settings)
+                self.frm_agent_settings_2.pack()
+                self.update_agent_menu("General", 2)
+                tk.Label(self.frm_game_settings, text="Agent 1 Colour:").pack()
+                tk.Radiobutton(
+                    self.frm_game_settings,
+                    variable=self.agent_colour,
+                    text = "White",
+                    value="w"
+                ).pack()
+                tk.Radiobutton(
+                    self.frm_game_settings,
+                    variable=self.agent_colour,
+                    text = "Black",
+                    value="b"
+                ).pack()
+
+
+    def update_agent_menu(self, agent_type: str, agent_num = 1):
+        """
+        Change the agent menu that displays once we change our agent selection
+        """
+        #TODO these aren't displaying
+        #choose the correct menu and settings to update
+        if agent_num == 1:
+            settings = self.agent_settings_1
+            frm = self.frm_agent_settings_1
+        else:
+            settings = self.agent_settings_2
+            frm = self.frm_agent_settings_2
+        if frm is not None:
+            #reset the previous game settings
+            for widget in frm.winfo_children():
+                widget.destroy()
+        #update menu based on selection
+        match agent_type:
+            case "General":
+                #parameter currently does nothing
+                settings["difficulty"] = tk.IntVar(value=3)
+            case "Basic":
+                settings["depth"] = tk.IntVar(value=3)
+                settings["beliefs"] = tk.IntVar(value=20)
+                #depth changing
+                tk.Label(frm, text="Depth").pack()
+                lbl_depth_value = tk.Label(master=frm, text=str(self.depth))
+                lbl_depth_value.pack()
+                tk.Button(
+                    master=frm, text="-",
+                    command=partial(self.change_lbl, False, "depth", lbl_depth_value)
+                ).pack()
+                tk.Button(
+                    master=frm, text="+",
+                    command=partial(self.change_lbl, True, "depth", lbl_depth_value)
+                ).pack()
+                #beliefs changing
+                tk.Label(frm, text="Beliefs").pack()
+                lbl_beliefs_value = tk.Label(master=frm, text=str(self.beliefs))
+                lbl_beliefs_value.pack()
+                tk.Button(
+                    master=frm, text="-",
+                    command=partial(self.change_lbl, False, "beliefs", lbl_beliefs_value)
+                ).pack()
+                tk.Button(
+                    master=frm, text="+",
+                    command=partial(self.change_lbl, True, "beliefs", lbl_beliefs_value)
+                ).pack()
 
 
 class GameFrame(tk.Frame):
