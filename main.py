@@ -3,11 +3,11 @@ Module for the control of the program flow
 """
 
 import logging
-import agents.rl_agent
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
 import agents.basic_agent
+import agents.rl_agent
 
 class Controller:
     """
@@ -110,6 +110,7 @@ class Controller:
                 self.agent = agents.rl_agent.RLAgent(
                     num_cols=num_cols, num_rows=num_rows, colour=agent_colour
                 )
+                self.agent.train()
             case None: # no agent, a 2 player game
                 self.agent = None
             case _:

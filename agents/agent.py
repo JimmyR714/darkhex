@@ -40,7 +40,7 @@ class Agent():
 
     def update_information(self, col: int, row: int, colour: str) -> bool:
         """
-        Recieve some updated information about the board.
+        Receive some updated information about the board.
         The controller of this agent will call this after we make a move.
         Necessary to find out whether our move was successful.
         
