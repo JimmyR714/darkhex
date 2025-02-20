@@ -3,6 +3,7 @@ Module for agents that use reinforcement learning
 """
 from pprint import pprint
 import os
+from pathlib import Path
 import logging
 import json
 from ray.rllib.algorithms.algorithm import Algorithm
@@ -10,9 +11,10 @@ from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.connectors.env_to_module import FlattenObservations
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.core.rl_module.default_model_config import DefaultModelConfig
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
-from ray.rllib.core.rl_module import RLModule
+from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
+from ray.rllib.core.rl_module.rl_module import RLModule
 import torch
 import gymnasium as gym
 import numpy as np
@@ -40,16 +42,17 @@ class RLAgent(agents.agent.Agent):
     def from_file(cls, path: str):
         """
         Retrieve an agent from a file path.
-        The number of cols and rows must also be stored in that path
+        The agent colour and number of cols and rows must also be stored in that path
         """
+        #TODO fix bug with retrieving from settings
         with open(os.path.join(path, "settings.json"), "r", encoding="utf-8") as f:
             settings = json.load(f)
         rl_module = RLModule.from_checkpoint(
-            path
+            Path(path)
             / "learner_group"
             / "learner"
             / "rl_module"
-            / "default_policy"
+            / settings["colour"]
         )
         return cls(
             num_cols=settings["num_cols"],
@@ -64,7 +67,10 @@ class RLAgent(agents.agent.Agent):
         """
         Create a fresh, untrained agent
         """
-        use_ltsm = True
+        #TODO not working with ltsm
+        # use https://github.com/ray-project/ray/blob/master/rllib/
+        #     examples/inference/policy_inference_after_training_w_connector.py
+        use_ltsm = False
         #define rl algorithm
         config = (
             PPOConfig()
@@ -123,22 +129,32 @@ class RLAgent(agents.agent.Agent):
 
     def move(self):
         #compute the next action
-        obs_batch = torch.from_numpy(self.obs).unsqueeze(0)
+        obs_batch = torch.from_numpy(self.obs[self.colour]).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
 
+        #testing
+        logging.debug(["model outputs are", model_outputs["action_dist_inputs"][0]])
         #extract action distribution
         action_dist = model_outputs["action_dist_inputs"][0].numpy()
 
         #get most likely action
         best_action = np.argmax(action_dist)
 
+        logging.debug(["best action is", best_action])
+
         #play the action
         #TODO do I need the other variables?
-        self.obs, reward, terminated, truncated, info = self.env.step(best_action)
+        self.obs, reward, terminated, truncated, info = self.env.step(int(best_action))
 
         #return move for abstract game
         return (best_action // self.num_rows, best_action % self.num_rows)
 
+
+    def update_information(self, col, row, colour):
+        #we don't need to update when the colour is ours
+        if colour != self.colour:
+            self.obs, reward, terminated, truncated, info = self.env.step((col * self.num_rows) + row)
+        return super().update_information(col, row, colour)
 
     def train(self, iterations = 5):
         """
@@ -148,7 +164,8 @@ class RLAgent(agents.agent.Agent):
         for _ in range(iterations):
             pprint(self.algo.train())
         #save to our rl module
-        self.rl_module = self.algo.get_module(self.colour)
+        #TODO cannot run immediately after training
+        #self.rl_module = self.algo.get_module(self.colour)
 
 
     def save(self, path: str):
@@ -212,7 +229,9 @@ class DarkHexEnv(MultiAgentEnv):
         Do one step in this episode
         """
         #action is (col * num_rows) + row
-        action : int = action_dict[self.abstract_game.turn]
+        #TODO temp action_dict is now action
+        #action : int = action_dict[self.abstract_game.turn]
+        action = action_dict
         col = action // self.num_rows
         row = action % self.num_rows
         # Create a rewards-dict (containing the rewards of the agent that just acted).
@@ -274,7 +293,10 @@ def main():
     logging.info("Training Agent")
     agent.train()
     logging.info("Agent trained")
-    logging.debug(agent.save(os.path.join(os.path.dirname(__file__), "rl_agent_checkpoint")))
+    logging.debug(agent.save(
+        os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent")
+    ))
+
 
 if __name__ == "__main__":
     main()

@@ -109,10 +109,11 @@ class Controller:
                 )
             case "RL":
                 #TODO get path based on settings
-                path = os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent")
+                path = os.path.join(os.path.dirname(__file__), "agents\\trained_agents\\rl_agent")
                 self.agent = agents.rl_agent.RLAgent.from_file(
                     path=path
                 )
+                self.agent.reset()
             case None: # no agent, a 2 player game
                 self.agent = None
             case _:
