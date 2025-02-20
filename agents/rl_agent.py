@@ -2,12 +2,18 @@
 Module for agents that use reinforcement learning
 """
 from pprint import pprint
+import os
+import logging
+import json
+from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.connectors.env_to_module import FlattenObservations
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.core.rl_module.default_model_config import DefaultModelConfig
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+from ray.rllib.core.rl_module import RLModule
+import torch
 import gymnasium as gym
 import numpy as np
 import agents.agent
@@ -17,10 +23,48 @@ class RLAgent(agents.agent.Agent):
     """
     Agent that uses Rl techniques to choose moves
     """
-    USE_LTSM = True
-    def __init__(self, num_cols, num_rows, colour):
+    def __init__(self, num_cols: int, num_rows: int, colour: str,
+                 rl_module: RLModule, algo: Algorithm = None):
         super().__init__(num_cols, num_rows, colour)
+        self.rl_module = rl_module
+        self.algo = algo
+        self.env = DarkHexEnv(config={
+                    "num_cols": num_cols,
+                    "num_rows": num_rows
+                })
+        self.obs = None
+        self.info = None
 
+
+    @classmethod
+    def from_file(cls, path: str):
+        """
+        Retrieve an agent from a file path.
+        The number of cols and rows must also be stored in that path
+        """
+        with open(os.path.join(path, "settings.json"), "r", encoding="utf-8") as f:
+            settings = json.load(f)
+        rl_module = RLModule.from_checkpoint(
+            path
+            / "learner_group"
+            / "learner"
+            / "rl_module"
+            / "default_policy"
+        )
+        return cls(
+            num_cols=settings["num_cols"],
+            num_rows=settings["num_rows"],
+            colour=settings["colour"],
+            rl_module=rl_module
+        )
+
+
+    @classmethod
+    def to_train(cls, num_cols: int, num_rows: int, colour: str):
+        """
+        Create a fresh, untrained agent
+        """
+        use_ltsm = True
         #define rl algorithm
         config = (
             PPOConfig()
@@ -45,9 +89,9 @@ class RLAgent(agents.agent.Agent):
             )
             .rl_module(
                 model_config=DefaultModelConfig(
-                    use_lstm=self.USE_LTSM,
+                    use_lstm=use_ltsm,
                     # Use a simpler FCNet when we also have an LSTM.
-                    fcnet_hiddens=[32] if self.USE_LTSM else [256, 256],
+                    fcnet_hiddens=[32] if use_ltsm else [256, 256],
                     lstm_cell_size=256,
                     max_seq_len=15,
                     vf_share_layers=True,
@@ -60,8 +104,40 @@ class RLAgent(agents.agent.Agent):
                 ),
             )
         )
+        return cls(
+            num_cols=num_cols,
+            num_rows=num_rows,
+            colour=colour,
+            rl_module=None,
+            algo = config.build_algo(),
+        )
 
-        self.algo = config.build_algo()
+
+    def reset(self):
+        """
+        Reset the environment that the agent uses.
+        Must be used at the start of a game.
+        """
+        self.obs, self.info = self.env.reset()
+
+
+    def move(self):
+        #compute the next action
+        obs_batch = torch.from_numpy(self.obs).unsqueeze(0)
+        model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
+
+        #extract action distribution
+        action_dist = model_outputs["action_dist_inputs"][0].numpy()
+
+        #get most likely action
+        best_action = np.argmax(action_dist)
+
+        #play the action
+        #TODO do I need the other variables?
+        self.obs, reward, terminated, truncated, info = self.env.step(best_action)
+
+        #return move for abstract game
+        return (best_action // self.num_rows, best_action % self.num_rows)
 
 
     def train(self, iterations = 5):
@@ -71,9 +147,22 @@ class RLAgent(agents.agent.Agent):
         # Train it for 5 iterations
         for _ in range(iterations):
             pprint(self.algo.train())
+        #save to our rl module
+        self.rl_module = self.algo.get_module(self.colour)
 
-        # evaluate the algorithm
-        pprint(self.algo.evaluate())
+
+    def save(self, path: str):
+        """
+        Save the algorithm to a path. 
+        It can then be used in future to play the game.
+        """
+        self.algo.save_to_path(path)
+        with open(os.path.join(path, "settings.json"), "w", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "num_cols": self.num_cols,
+                "num_rows": self.num_rows,
+                "colour": self.colour
+            }, indent=4))
 
 
 class DarkHexEnv(MultiAgentEnv):
@@ -123,8 +212,8 @@ class DarkHexEnv(MultiAgentEnv):
         Do one step in this episode
         """
         #action is (col * num_rows) + row
-        action = action_dict[self.abstract_game.turn]
-        col = action / self.num_rows
+        action : int = action_dict[self.abstract_game.turn]
+        col = action // self.num_rows
         row = action % self.num_rows
         # Create a rewards-dict (containing the rewards of the agent that just acted).
         rewards = {"w": 0.0, "b": 0.0}
@@ -181,8 +270,11 @@ def main():
     """
     num_cols = 3
     num_rows = 3
-    agent = RLAgent(num_cols=num_cols, num_rows=num_rows, colour="w")
-    agent.train(iterations=1)
+    agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour="w")
+    logging.info("Training Agent")
+    agent.train()
+    logging.info("Agent trained")
+    logging.debug(agent.save(os.path.join(os.path.dirname(__file__), "rl_agent_checkpoint")))
 
 if __name__ == "__main__":
     main()

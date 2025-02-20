@@ -3,6 +3,7 @@ Module for the control of the program flow
 """
 
 import logging
+import os
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
@@ -107,10 +108,11 @@ class Controller:
                     num_cols=num_cols, num_rows=num_rows, colour=agent_colour
                 )
             case "RL":
-                self.agent = agents.rl_agent.RLAgent(
-                    num_cols=num_cols, num_rows=num_rows, colour=agent_colour
+                #TODO get path based on settings
+                path = os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent")
+                self.agent = agents.rl_agent.RLAgent.from_file(
+                    path=path
                 )
-                self.agent.train()
             case None: # no agent, a 2 player game
                 self.agent = None
             case _:
