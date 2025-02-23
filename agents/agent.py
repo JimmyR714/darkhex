@@ -1,5 +1,6 @@
 """Module containing the general agent class"""
 import random
+import logging
 
 class Agent():
     """
@@ -53,8 +54,10 @@ class Agent():
             
         Returns:
             True: When another move must be made.
+            
             False: When no other move must be made.
         """
+        logging.debug("Updating information in agent")
         self.board[row-1][col-1] = colour
         #i.e. if we discovered one of their pieces
         return self.colour != colour

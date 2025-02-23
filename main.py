@@ -119,6 +119,7 @@ class Controller:
             case _:
                 raise ValueError(f"Agent type \"{agent}\" does not exist.")
 
+
 def main():
     """
     Create the display for the game and run the mainloop
@@ -126,6 +127,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     controller = Controller()
     controller.make_window()
+
 
 if __name__ == "__main__":
     main()

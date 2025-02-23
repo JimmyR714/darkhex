@@ -19,6 +19,7 @@ import torch
 import gymnasium as gym
 import numpy as np
 import agents.agent
+import game.util as util
 import game.darkhex as dh
 
 class RLAgent(agents.agent.Agent):
@@ -127,34 +128,53 @@ class RLAgent(agents.agent.Agent):
         self.obs, self.info = self.env.reset()
 
 
-    def move(self):
+    def move(self, predict=False):
+        #if the other player has gone, we predict their move
+        if predict:
+            colour = util.swap_colour(self.colour)
+        else:
+            colour = self.colour
         #compute the next action
-        obs_batch = torch.from_numpy(self.obs[self.colour]).unsqueeze(0).float()
+        logging.debug("Observations are: %s", self.obs)
+        obs_batch = torch.from_numpy(self.obs[colour]).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
 
         #testing
-        logging.debug(["model outputs are", model_outputs["action_dist_inputs"][0]])
+        logging.debug("Model outputs are %s", model_outputs["action_dist_inputs"][0])
         #extract action distribution
         action_dist = model_outputs["action_dist_inputs"][0].numpy()
 
-        #get most likely action
-        best_action = np.argmax(action_dist)
+        if predict:
+            #get best action for opponent
+            best_action = int(np.argmin(action_dist))
+            logging.debug("Best action for opponent is %s", best_action)
+        else:
+            #get best action for us
+            best_action = int(np.argmax(action_dist))
+            logging.debug("Best action for agent is %s", best_action)
 
-        logging.debug(["best action is", best_action])
-
-        #play the action
-        #TODO do I need the other variables?
-        self.obs, reward, terminated, truncated, info = self.env.step(int(best_action))
 
         #return move for abstract game
-        return (best_action // self.num_rows, best_action % self.num_rows)
+        move = ((best_action // self.num_rows)+1, (best_action % self.num_rows)+1)
+        logging.debug("Returning move %s", move)
+        return move
 
 
-    def update_information(self, col, row, colour):
+    def update_information(self, col: int, row: int, colour: str):
+        move_again = super().update_information(col, row, colour)
+        #TODO fix bug where black sees white's initial move
+        self.obs, _, _, _, _ = self.env.step({colour: ((col-1) * self.num_rows) + row - 1})
+        logging.debug("Returned new obs is: %s", self.obs)
         #we don't need to update when the colour is ours
-        if colour != self.colour:
-            self.obs, reward, terminated, truncated, info = self.env.step((col * self.num_rows) + row)
-        return super().update_information(col, row, colour)
+        while "w" not in self.obs:
+            # we predict the move that the opponent makes
+            logging.debug("Predicting opponents's move")
+            predicted_col, predicted_row = self.move(predict=True)
+            self.obs, _, _, _, _ = self.env.step(
+                {util.swap_colour(colour): ((predicted_col-1) * self.num_rows) + predicted_row - 1})
+            #TODO error when this returns non-white observation
+        return move_again
+
 
     def train(self, iterations = 5):
         """
@@ -173,6 +193,7 @@ class RLAgent(agents.agent.Agent):
         Save the algorithm to a path. 
         It can then be used in future to play the game.
         """
+        logging.debug("Saving agent to %s", path)
         self.algo.save_to_path(path)
         with open(os.path.join(path, "settings.json"), "w", encoding="utf-8") as f:
             f.write(json.dumps({
@@ -186,6 +207,7 @@ class DarkHexEnv(MultiAgentEnv):
     """
     Environment to be passed into PPO algorithm
     """
+    #TODO ensure each space can only be played once
     def __init__(self, config : dict[str, int]):
         super().__init__()
         num_cols : int = config["num_cols"]
@@ -228,12 +250,15 @@ class DarkHexEnv(MultiAgentEnv):
         """
         Do one step in this episode
         """
-        #action is (col * num_rows) + row
-        #TODO temp action_dict is now action
+        #TODO temp action_dict is checked with this
+        if "w" in action_dict:
+            action : int = action_dict["w"]
+        else:
+            action : int = action_dict["b"]
+        #action is (col-1 * num_rows) + row-1
         #action : int = action_dict[self.abstract_game.turn]
-        action = action_dict
-        col = action // self.num_rows
-        row = action % self.num_rows
+        col = (action // self.num_rows) + 1
+        row = (action % self.num_rows) + 1
         # Create a rewards-dict (containing the rewards of the agent that just acted).
         rewards = {"w": 0.0, "b": 0.0}
         # Create a terminated-dict with the special `__all__` agent ID, indicating that
@@ -243,6 +268,7 @@ class DarkHexEnv(MultiAgentEnv):
         initial_turn = self.abstract_game.turn
         move_result = self.abstract_game.move(col=col, row=row, colour=initial_turn)
         #get rewards, termination, and board updates of the move
+        logging.debug("Move result in step is: %s", move_result)
         match move_result:
             case "black_win":
                 self.black_board[action] = -1
