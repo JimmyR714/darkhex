@@ -13,7 +13,6 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.core.rl_module.default_model_config import DefaultModelConfig
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
 from ray.rllib.core.rl_module.rl_module import RLModule
 import torch
 import gymnasium as gym
@@ -26,6 +25,7 @@ class RLAgent(agents.agent.Agent):
     """
     Agent that uses Rl techniques to choose moves
     """
+    #TODO fix main bug that shows up from rllib
     def __init__(self, num_cols: int, num_rows: int, colour: str,
                  rl_module: RLModule, algo: Algorithm = None):
         super().__init__(num_cols, num_rows, colour)
@@ -146,13 +146,17 @@ class RLAgent(agents.agent.Agent):
 
         if predict:
             #get best action for opponent
-            best_action = int(np.argmin(action_dist))
-            logging.debug("Best action for opponent is %s", best_action)
+            sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1])
         else:
             #get best action for us
-            best_action = int(np.argmax(action_dist))
-            logging.debug("Best action for agent is %s", best_action)
+            sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1], reverse=True)
 
+        best_action = None
+        for action in sorted_dist:
+            best_action = action[0]
+            if self.env.get_board(colour)[action[0]] != (2*int(colour == "w"))-1:
+                break
+        logging.debug("Best action is %s", best_action)
 
         #return move for abstract game
         move = ((best_action // self.num_rows)+1, (best_action % self.num_rows)+1)
@@ -162,11 +166,12 @@ class RLAgent(agents.agent.Agent):
 
     def update_information(self, col: int, row: int, colour: str):
         move_again = super().update_information(col, row, colour)
+        old_obs = self.obs
         #TODO fix bug where black sees white's initial move
         self.obs, _, _, _, _ = self.env.step({colour: ((col-1) * self.num_rows) + row - 1})
         logging.debug("Returned new obs is: %s", self.obs)
         #we don't need to update when the colour is ours
-        while "w" not in self.obs:
+        if "w" not in self.obs:
             # we predict the move that the opponent makes
             logging.debug("Predicting opponents's move")
             predicted_col, predicted_row = self.move(predict=True)
@@ -285,7 +290,14 @@ class DarkHexEnv(MultiAgentEnv):
             case "full_black":
                 self.white_board[action] = -1
             case "placed":
-                self.get_board(initial_turn)[action] = (2*int(initial_turn == "w"))-1
+                # Penalize placing a piece in an occupied cell
+                cell_value = (2*int(initial_turn == "w"))-1
+                if self.get_board(initial_turn)[action] == cell_value:
+                    #we have played here before
+                    rewards[initial_turn] -= 10.0
+                    rewards[util.swap_colour(initial_turn)] += 10.0
+                else:
+                    self.get_board(initial_turn)[action] = cell_value
         turn = self.abstract_game.turn
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
         return (
@@ -313,14 +325,14 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 3
-    num_rows = 3
+    num_cols = 5
+    num_rows = 5
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour="w")
     logging.info("Training Agent")
-    agent.train()
+    agent.train(iterations=100)
     logging.info("Agent trained")
     logging.debug(agent.save(
-        os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent")
+        os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_5x5")
     ))
 
 

@@ -109,7 +109,7 @@ class Controller:
                 )
             case "RL":
                 #TODO get path based on settings
-                path = os.path.join(os.path.dirname(__file__), "agents\\trained_agents\\rl_agent")
+                path = os.path.join(os.path.dirname(__file__), "agents\\trained_agents\\rl_agent_5x5")
                 self.agent = agents.rl_agent.RLAgent.from_file(
                     path=path
                 )

@@ -126,9 +126,10 @@ class MainMenuFrame(tk.Frame):
         btn_col_increase.grid(row=0, column=2, sticky="ew")
 
         #display selection
+        #TODO once you create a display it can never be removed
         lbl_displays = tk.Label(self, text="Displays")
         frm_displays = tk.Frame(self)
-        self.global_display = tk.IntVar()
+        self.global_display = tk.IntVar(value=1)
         btn_global_display = tk.Checkbutton(
             frm_displays,
             text="Global",
@@ -174,7 +175,7 @@ class MainMenuFrame(tk.Frame):
         lbl_agent = tk.Label(self, text="Select Agent:")
         frm_agent = tk.Frame(self)
         self.agent_selection = tk.StringVar()
-        self.agent_selection.set("None")
+        self.agent_selection.set("RL")
         ddm_agent = tk.OptionMenu(
             frm_agent,
             self.agent_selection,
