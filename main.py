@@ -4,6 +4,7 @@ Module for the control of the program flow
 
 import logging
 import os
+from game import util as util
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
@@ -108,10 +109,13 @@ class Controller:
                     num_cols=num_cols, num_rows=num_rows, colour=agent_colour
                 )
             case "RL":
-                #TODO get path based on settings
-                path = os.path.join(os.path.dirname(__file__), "agents\\trained_agents\\rl_agent_5x5")
                 self.agent = agents.rl_agent.RLAgent.from_file(
-                    path=path
+                    path=util.select_rl_agent(
+                        cols=num_cols,
+                        rows=num_rows,
+                        colour=agent_colour,
+                        current_path=os.path.dirname(__file__)
+                    )
                 )
                 self.agent.reset()
             case None: # no agent, a 2 player game

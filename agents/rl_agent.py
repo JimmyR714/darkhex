@@ -45,7 +45,6 @@ class RLAgent(agents.agent.Agent):
         Retrieve an agent from a file path.
         The agent colour and number of cols and rows must also be stored in that path
         """
-        #TODO fix bug with retrieving from settings
         with open(os.path.join(path, "settings.json"), "r", encoding="utf-8") as f:
             settings = json.load(f)
         rl_module = RLModule.from_checkpoint(
@@ -166,7 +165,6 @@ class RLAgent(agents.agent.Agent):
 
     def update_information(self, col: int, row: int, colour: str):
         move_again = super().update_information(col, row, colour)
-        old_obs = self.obs
         #TODO fix bug where black sees white's initial move
         self.obs, _, _, _, _ = self.env.step({colour: ((col-1) * self.num_rows) + row - 1})
         logging.debug("Returned new obs is: %s", self.obs)
@@ -177,7 +175,6 @@ class RLAgent(agents.agent.Agent):
             predicted_col, predicted_row = self.move(predict=True)
             self.obs, _, _, _, _ = self.env.step(
                 {util.swap_colour(colour): ((predicted_col-1) * self.num_rows) + predicted_row - 1})
-            #TODO error when this returns non-white observation
         return move_again
 
 
@@ -212,7 +209,6 @@ class DarkHexEnv(MultiAgentEnv):
     """
     Environment to be passed into PPO algorithm
     """
-    #TODO ensure each space can only be played once
     def __init__(self, config : dict[str, int]):
         super().__init__()
         num_cols : int = config["num_cols"]
@@ -290,12 +286,13 @@ class DarkHexEnv(MultiAgentEnv):
             case "full_black":
                 self.white_board[action] = -1
             case "placed":
-                # Penalize placing a piece in an occupied cell
+                # hugely penalize placing a piece in an occupied cell,
+                # hence the algorithm shouldn't ever choose to do it
                 cell_value = (2*int(initial_turn == "w"))-1
                 if self.get_board(initial_turn)[action] == cell_value:
                     #we have played here before
-                    rewards[initial_turn] -= 10.0
-                    rewards[util.swap_colour(initial_turn)] += 10.0
+                    rewards[initial_turn] -= 100.0
+                    rewards[util.swap_colour(initial_turn)] += 100.0
                 else:
                     self.get_board(initial_turn)[action] = cell_value
         turn = self.abstract_game.turn
@@ -332,7 +329,8 @@ def main():
     agent.train(iterations=100)
     logging.info("Agent trained")
     logging.debug(agent.save(
-        os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_5x5")
+        os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(
+            num_cols) + "x" + str(num_rows) + "_" + "w_new")
     ))
 
 
