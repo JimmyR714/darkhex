@@ -17,16 +17,17 @@ class AbstractDarkHex:
     We have black "goals" at the top and bottom, and white "goals" at the left and right.
     """
 
-    def __init__(self, _cols : int, _rows : int, _first_turn="w"):
-        self.cols = _cols
-        self.rows = _rows
+    def __init__(self, cols : int, rows : int, first_turn="w", turn_check=True):
+        self.cols = cols
+        self.rows = rows
         self.board = []
         self.black_board = []
         self.white_board = []
         self.black_components = DisjointSet([])
         self.white_components = DisjointSet([])
-        self.turn = _first_turn  # for now, default first turn is white's
-        self.first_turn = _first_turn  # save in case of reset
+        self.turn = first_turn  # for now, default first turn is white's
+        self.first_turn = first_turn  # save in case of reset
+        self.turn_check = turn_check #only check turns in some situations
         logging.info("Board parameters defined")
         self.reset_board()  # set starting state of board and components
 
@@ -45,18 +46,19 @@ class AbstractDarkHex:
             "full_black" if the cell is occupied with a black tile
         """
         # check that this player is allowed to move
-        assert colour == self.turn
+        if self.turn_check:
+            assert colour == self.turn
 
         cell = self.board[row][col]
         if cell != "e":  # if the chosen cell is not empty
             logging.info("Non-empty cell %s at (%s, %s)", cell, col, row)
             # update our view, since we know where their piece is now
-            self._get_board(colour)[row][col] = self.board[row][col]  # view update
+            self.get_board(colour)[row][col] = self.board[row][col]  # view update
             return "full_" + util.colour_map[self.board[row][col]]
         else:
             # update global board and our view
             self.board[row][col] = colour
-            self._get_board(colour)[row][col] = colour
+            self.get_board(colour)[row][col] = colour
             self.turn = util.swap_colour(colour)  # swap turn
             util.update_components(
                 cell_pos=(col, row),
@@ -99,7 +101,7 @@ class AbstractDarkHex:
         logging.info("Board reset")
 
 
-    def _get_board(self, colour : str) -> list[list[str]]:
+    def get_board(self, colour : str) -> list[list[str]]:
         """
         Returns the board for a given colour
         """
@@ -109,4 +111,4 @@ class AbstractDarkHex:
             case "w":
                 return self.white_board
             case _:
-                raise ValueError("Invalid colour given to _get_board")
+                raise ValueError("Invalid colour given to get_board")

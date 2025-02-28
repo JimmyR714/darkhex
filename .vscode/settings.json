@@ -1,6 +1,12 @@
 {
     "cSpell.words": [
+        "argmin",
+        "coeff",
         "darkhex",
-        "HEXY"
+        "fcnet",
+        "HEXY",
+        "hiddens",
+        "LTSM",
+        "rllib"
     ]
 }

@@ -3,10 +3,13 @@ Module for the control of the program flow
 """
 
 import logging
+import os
+from game import util as util
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
 import agents.basic_agent
+import agents.rl_agent
 
 class Controller:
     """
@@ -105,10 +108,21 @@ class Controller:
                 self.agent = agents.basic_agent.BasicAgent(
                     num_cols=num_cols, num_rows=num_rows, colour=agent_colour
                 )
+            case "RL":
+                self.agent = agents.rl_agent.RLAgent.from_file(
+                    path=util.select_rl_agent(
+                        cols=num_cols,
+                        rows=num_rows,
+                        colour=agent_colour,
+                        current_path=os.path.dirname(__file__)
+                    )
+                )
+                self.agent.reset()
             case None: # no agent, a 2 player game
                 self.agent = None
             case _:
                 raise ValueError(f"Agent type \"{agent}\" does not exist.")
+
 
 def main():
     """
@@ -117,6 +131,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     controller = Controller()
     controller.make_window()
+
 
 if __name__ == "__main__":
     main()
