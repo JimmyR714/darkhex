@@ -165,7 +165,6 @@ class RLAgent(agents.agent.Agent):
 
     def update_information(self, col: int, row: int, colour: str):
         move_again = super().update_information(col, row, colour)
-        #TODO fix bug where black sees white's initial move
         self.obs, _, _, _, _ = self.env.step({colour: ((col-1) * self.num_rows) + row - 1})
         logging.debug("Returned new obs is: %s", self.obs)
         #we don't need to update when the colour is ours
@@ -241,8 +240,9 @@ class DarkHexEnv(MultiAgentEnv):
         Initialise the abstract game and set the starting players
         """
         #create abstract game of correct size
-        self.abstract_game = dh.AbstractDarkHex(self.num_cols, self.num_rows)
-        self.white_board = self.black_board = [0] * self.num_cols * self.num_rows
+        self.abstract_game = dh.AbstractDarkHex(self.num_cols, self.num_rows, turn_check=False)
+        self.white_board = [0] * self.num_cols * self.num_rows
+        self.black_board = [0] * self.num_cols * self.num_rows
         # return observation dict and infos dict.
         return {"w": np.array(self.white_board, np.float32)}, {}
 
@@ -322,8 +322,8 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 5
-    num_rows = 5
+    num_cols = 3
+    num_rows = 3
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour="w")
     logging.info("Training Agent")
     agent.train(iterations=100)
