@@ -127,15 +127,14 @@ class RLAgent(agents.agent.Agent):
         self.obs, self.info = self.env.reset()
 
 
-    def move(self, predict=False):
-        #if the other player has gone, we predict their move
-        if predict:
-            colour = util.swap_colour(self.colour)
-        else:
-            colour = self.colour
+    def move(self):
+        """
+        Used exclusively for the agent to make a concrete move,
+        no predictions are made here.
+        """
         #compute the next action
         logging.debug("Observations are: %s", self.obs)
-        obs_batch = torch.from_numpy(self.obs[colour]).unsqueeze(0).float()
+        obs_batch = torch.from_numpy(self.obs[self.colour]).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
 
         #testing
@@ -143,17 +142,13 @@ class RLAgent(agents.agent.Agent):
         #extract action distribution
         action_dist = model_outputs["action_dist_inputs"][0].numpy()
 
-        if predict:
-            #get best action for opponent
-            sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1])
-        else:
-            #get best action for us
-            sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1], reverse=True)
+        #get best action for us
+        sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1], reverse=True)
 
         best_action = None
         for action in sorted_dist:
             best_action = action[0]
-            if self.env.get_board(colour)[action[0]] != (2*int(colour == "w"))-1:
+            if self.env.get_board(self.colour)[action[0]] == 0:
                 break
         logging.debug("Best action is %s", best_action)
 
@@ -165,15 +160,25 @@ class RLAgent(agents.agent.Agent):
 
     def update_information(self, col: int, row: int, colour: str):
         move_again = super().update_information(col, row, colour)
-        self.obs, _, _, _, _ = self.env.step({colour: ((col-1) * self.num_rows) + row - 1})
+        position = ((col-1) * self.num_rows) + row - 1
+        #we inspect what we need to update
+        if colour == self.colour and not move_again:
+            #when it is our colour, and move again is false, it must be placed
+            self.obs, _, _, _, _ = self.env.step({colour: position})
+            #the new self.obs is opponent's
+            #TODO use opponent's observations to predict their move
+            #get our observations for our next move
+            self.obs = self.env.get_obs(self.colour)
+        elif colour != self.colour and move_again:
+            #when it is not our colour and move again is true, we found their piece
+            self.env.update_board("w", position, (2*int(colour == "w"))-1)
+            #get our new observation based on this move
+            self.obs = self.env.get_obs(self.colour)
+        else:
+            raise ValueError(
+                f"Invalid call of update information: col= {col}, row={row}, colour={colour}",
+                )
         logging.debug("Returned new obs is: %s", self.obs)
-        #we don't need to update when the colour is ours
-        if "w" not in self.obs:
-            # we predict the move that the opponent makes
-            logging.debug("Predicting opponents's move")
-            predicted_col, predicted_row = self.move(predict=True)
-            self.obs, _, _, _, _ = self.env.step(
-                {util.swap_colour(colour): ((predicted_col-1) * self.num_rows) + predicted_row - 1})
         return move_again
 
 
@@ -254,8 +259,10 @@ class DarkHexEnv(MultiAgentEnv):
         #TODO temp action_dict is checked with this
         if "w" in action_dict:
             action : int = action_dict["w"]
+            initial_turn = "w"
         else:
             action : int = action_dict["b"]
+            initial_turn = "b"
         #action is (col-1 * num_rows) + row-1
         #action : int = action_dict[self.abstract_game.turn]
         col = (action // self.num_rows) + 1
@@ -266,7 +273,6 @@ class DarkHexEnv(MultiAgentEnv):
         # if True, the episode ends for all agents.
         terminated = {"__all__": False}
         #do the move
-        initial_turn = self.abstract_game.turn
         move_result = self.abstract_game.move(col=col, row=row, colour=initial_turn)
         #get rewards, termination, and board updates of the move
         logging.debug("Move result in step is: %s", move_result)
@@ -298,13 +304,27 @@ class DarkHexEnv(MultiAgentEnv):
         turn = self.abstract_game.turn
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
         return (
-            {turn:
-                np.array(self.get_board(turn), np.float32)},
+            self.get_obs(turn),
             rewards,
             terminated,
             {},
             {}
         )
+
+
+    def update_board(self, colour: str, position: int, value: int):
+        """
+        WARNING: Be careful with use, most updates should use the step function.
+        Does a crude update of the board of a given colour in a position.
+        """
+        self.get_board(colour)[position] = value
+
+
+    def get_obs(self, colour:str) -> np.array:
+        """
+        Return the current observations of a given colour
+        """
+        return {colour: np.array(self.get_board(colour), np.float32)}
 
 
     def get_board(self, colour: str) -> list[int]:
