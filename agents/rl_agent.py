@@ -342,15 +342,16 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 3
-    num_rows = 3
-    agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour="w")
+    num_cols = 4
+    num_rows = 4
+    colour = "w"
+    agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
     agent.train(iterations=100)
     logging.info("Agent trained")
     logging.debug(agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(
-            num_cols) + "x" + str(num_rows) + "_" + "w_new")
+            num_cols) + "x" + str(num_rows) + "_" + colour + "_new")
     ))
 
 

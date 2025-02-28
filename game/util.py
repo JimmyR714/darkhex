@@ -160,11 +160,8 @@ def select_rl_agent(cols: int, rows: int, colour: str, current_path: str) -> str
     Select the correct agent path based on game settings
     Returns the full correct path.
     """
-    if cols == 3 and rows == 3 and colour == "w":
-        agent_path = "rl_agent_3x3_w"
-    elif cols == 5 and rows == 5 and colour == "w":
-        agent_path = "rl_agent_5x5_w"
-    else:
-        raise ValueError("No trained RL agent for these settings")
-    path = os.path.join(current_path, "agents\\trained_agents")
-    return os.path.join(path, agent_path)
+    agent_path = "agents\\trained_agents\\rl_agent_" + str(cols) + "x" + str(rows) + "_" + colour
+    path = os.path.join(current_path, agent_path)
+    if not os.path.exists(path):
+        raise ValueError(f"No trained RL agent for these settings, checked path {path}")
+    return path
