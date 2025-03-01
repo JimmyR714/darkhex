@@ -31,6 +31,7 @@ class AbstractDarkHex:
         logging.info("Board parameters defined")
         self.reset_board()  # set starting state of board and components
 
+
     def move(self, row : int, col : int, colour : str) -> str:
         """
         Attempt to place a piece of a given colour into a given cell

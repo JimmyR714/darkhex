@@ -6,7 +6,7 @@ class Agent():
     """
     General class for an agent that can play dark hex
     """
-    def __init__(self, num_cols: int, num_rows: int, colour: str):
+    def __init__(self, num_cols: int, num_rows: int, settings: dict):
         """
         Creates an agent that has a strategy for the correct size board.
         This creates the self stored board and remembers board size.
@@ -16,9 +16,9 @@ class Agent():
                 Doesn't include borders.
             num_rows: int: The number of rows on the board (i..e the height). 
                 Doesn't include borders.
-            colour: str: The colour of the new cell. "w" for white and "b" for black.
+            settings: dict: The settings for this agent, e.g. agent colour
         """
-        self.colour = colour
+        self.colour = settings["colour"]
         self.num_rows = num_rows
         self.num_cols = num_cols
         self.board = [["e"] * num_cols] * num_rows
