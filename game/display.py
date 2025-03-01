@@ -12,7 +12,7 @@ import game.util as util
 MAX_ROWS = 11
 MAX_COLS = 11
 MAX_DEPTH = 10
-MAX_BELIEFS = 1028
+MAX_BELIEFS = 1024
 
 class DisplayWindow(tk.Tk):
     """
@@ -57,12 +57,6 @@ class DisplayWindow(tk.Tk):
         if self.main_menu.black_display.get() == 1:
             displays.append("black")
 
-        # get agent selection
-        agent = self.main_menu.agent_selection_1.get()
-        if agent == "None":
-            agent = None
-        agent_colour = self.main_menu.agent_colour.get()
-
         #reset previous game frames
         self.game_frames.clear()
         #create new game frames
@@ -74,10 +68,25 @@ class DisplayWindow(tk.Tk):
         for i, gf in enumerate(self.game_frames):
             gf.grid(row=0, column=1+i, sticky="nsew")
 
-        #run the new game in the controller
-        self.controller.new_game(
-            num_cols=cols, num_rows=rows, agent=agent, agent_colour=agent_colour
-        )
+        game_type = self.main_menu.game_selection.get()
+        match game_type:
+            case "Player vs Player":
+                self.controller.pvp_game() #TODO make player only method
+            case "Player vs Agent":
+                agent = self.main_menu.agent_selection_1.get()
+                agent_colour = self.main_menu.agent_colour.get()
+                agent_settings = self.main_menu.agent_settings_1
+                self.controller.pva_game()
+            case "Agent vs Agent":
+                agent_1 = self.main_menu.agent_selection_1.get()
+                agent_2 = self.main_menu.agent_selection_2.get()
+                agent_1_colour = self.main_menu.agent_colour.get()
+                agent_1_settings = self.main_menu.agent_settings_1
+                agent_2_settings = self.main_menu.agent_settings_2
+                #run the new game in the controller
+                self.controller.ava_game(
+                    num_cols=cols, num_rows=rows, agent=agent, agent_colour=agent_colour
+                )
 
 
 class MainMenuFrame(tk.Frame):
@@ -87,8 +96,8 @@ class MainMenuFrame(tk.Frame):
     """
     rows = 3
     cols = 3
-    depth = 3
-    beliefs = 20
+    depth = [3,3]
+    beliefs = [16,16]
     def __init__(self, master: DisplayWindow):
         super().__init__(master=master, relief=tk.RAISED, bd=2)
         # define widgets for main menu frame
@@ -201,12 +210,12 @@ class MainMenuFrame(tk.Frame):
         self.frm_game_settings = tk.Frame(self)
 
         #menu that appears based on agent type
-        self.frm_agent_settings_1 = None
-        self.frm_agent_settings_2 = None
+        self.frm_agent_settings_1 : tk.Frame = None
+        self.frm_agent_settings_2 : tk.Frame = None
 
         #set default agent settings
-        self.update_agent_menu("General", 1)
-        self.update_agent_menu("General", 2)
+        self.update_agent_menu(1, "General")
+        self.update_agent_menu(2, "General")
 
 
         # place widgets into menu frame
@@ -232,11 +241,19 @@ class MainMenuFrame(tk.Frame):
                 x = self.rows
             case "cols":
                 x = self.cols = min(max(self.cols + (2*int(incr)-1), 1), MAX_COLS)
-            case "depth":
-                x = self.depth = min(max(self.cols + (2*int(incr)-1), 1), MAX_DEPTH)
-            case "beliefs":
+            case "depth_1":
+                x = self.depth[0] = min(max(self.depth[0] + (2*int(incr)-1), 1), MAX_DEPTH)
+            case "depth_2":
+                x = self.depth[1] = min(max(self.depth[1] + (2*int(incr)-1), 1), MAX_DEPTH)
+            case "beliefs_1":
                 #this one doubles and halves each click
-                x = self.beliefs = min(max(self.cols + (int(incr)+1)/2, 1), MAX_BELIEFS)
+                x = self.beliefs[0] = int(
+                    min(max(self.beliefs[0] * (3*int(incr)+1)/2, 1), MAX_BELIEFS)
+                )
+            case "beliefs_2":
+                x = self.beliefs[1] = int(
+                    min(max(self.beliefs[1] * (3*int(incr)+1)/2, 1), MAX_BELIEFS)
+                )
 
         #update the correct label with the new text
         label["text"] = f"{x}"
@@ -268,7 +285,7 @@ class MainMenuFrame(tk.Frame):
                 ).pack()
                 self.frm_agent_settings_1 = tk.Frame(self.frm_game_settings)
                 self.frm_agent_settings_1.pack()
-                self.update_agent_menu("General", 1)
+                self.update_agent_menu(1, "General")
                 tk.Label(self.frm_game_settings, text="Agent Colour:").pack()
                 tk.Radiobutton(
                     self.frm_game_settings,
@@ -293,7 +310,7 @@ class MainMenuFrame(tk.Frame):
                 ).pack()
                 self.frm_agent_settings_1 = tk.Frame(self.frm_game_settings)
                 self.frm_agent_settings_1.pack()
-                self.update_agent_menu("General", 1)
+                self.update_agent_menu(1, "General")
                 tk.Label(self.frm_game_settings, text="Select Agent 2:").pack()
                 tk.OptionMenu(
                     self.frm_game_settings,
@@ -303,7 +320,7 @@ class MainMenuFrame(tk.Frame):
                 ).pack()
                 self.frm_agent_settings_2 = tk.Frame(self.frm_game_settings)
                 self.frm_agent_settings_2.pack()
-                self.update_agent_menu("General", 2)
+                self.update_agent_menu(2, "General")
                 tk.Label(self.frm_game_settings, text="Agent 1 Colour:").pack()
                 tk.Radiobutton(
                     self.frm_game_settings,
@@ -319,11 +336,12 @@ class MainMenuFrame(tk.Frame):
                 ).pack()
 
 
-    def update_agent_menu(self, agent_type: str, agent_num = 1):
+    def update_agent_menu(self, agent_num : int = 1, agent_type: str = "General"):
         """
         Change the agent menu that displays once we change our agent selection
         """
         #TODO these aren't displaying
+        logging.debug("Updating agent menu with type %s, number %s", agent_type, agent_num)
         #choose the correct menu and settings to update
         if agent_num == 1:
             settings = self.agent_settings_1
@@ -345,27 +363,27 @@ class MainMenuFrame(tk.Frame):
                 settings["beliefs"] = tk.IntVar(value=20)
                 #depth changing
                 tk.Label(frm, text="Depth").pack()
-                lbl_depth_value = tk.Label(master=frm, text=str(self.depth))
+                lbl_depth_value = tk.Label(master=frm, text=str(self.depth[agent_num-1]))
                 lbl_depth_value.pack()
                 tk.Button(
                     master=frm, text="-",
-                    command=partial(self.change_lbl, False, "depth", lbl_depth_value)
+                    command=partial(self.change_lbl, False, f"depth_{agent_num}", lbl_depth_value)
                 ).pack()
                 tk.Button(
                     master=frm, text="+",
-                    command=partial(self.change_lbl, True, "depth", lbl_depth_value)
+                    command=partial(self.change_lbl, True, f"depth_{agent_num}", lbl_depth_value)
                 ).pack()
                 #beliefs changing
                 tk.Label(frm, text="Beliefs").pack()
-                lbl_beliefs_value = tk.Label(master=frm, text=str(self.beliefs))
+                lbl_beliefs_value = tk.Label(master=frm, text=str(self.beliefs[agent_num-1]))
                 lbl_beliefs_value.pack()
                 tk.Button(
                     master=frm, text="-",
-                    command=partial(self.change_lbl, False, "beliefs", lbl_beliefs_value)
+                    command=partial(self.change_lbl, False, f"beliefs_{agent_num}", lbl_beliefs_value)
                 ).pack()
                 tk.Button(
                     master=frm, text="+",
-                    command=partial(self.change_lbl, True, "beliefs", lbl_beliefs_value)
+                    command=partial(self.change_lbl, True, f"beliefs_{agent_num}", lbl_beliefs_value)
                 ).pack()
 
 
