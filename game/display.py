@@ -13,6 +13,7 @@ MAX_ROWS = 11
 MAX_COLS = 11
 MAX_DEPTH = 10
 MAX_BELIEFS = 1024
+MAX_ITERS = 25
 
 class DisplayWindow(tk.Tk):
     """
@@ -69,24 +70,28 @@ class DisplayWindow(tk.Tk):
             gf.grid(row=0, column=1+i, sticky="nsew")
 
         game_type = self.main_menu.game_selection.get()
+        #make the game
+        self.controller.new_game(num_cols=cols, num_rows=rows)
         match game_type:
             case "Player vs Player":
-                self.controller.pvp_game() #TODO make player only method
+                logging.debug("Player vs Player game created")
             case "Player vs Agent":
-                agent = self.main_menu.agent_selection_1.get()
-                agent_colour = self.main_menu.agent_colour.get()
                 agent_settings = self.main_menu.agent_settings_1
-                self.controller.pva_game()
+                agent_settings["type"] = self.main_menu.agent_selection_1.get()
+                agent_settings["colour"] = self.main_menu.agent_colour.get()
+                self.controller.new_pva_game(agent_settings)
+                logging.debug("Player vs Agent game created")
             case "Agent vs Agent":
-                agent_1 = self.main_menu.agent_selection_1.get()
-                agent_2 = self.main_menu.agent_selection_2.get()
-                agent_1_colour = self.main_menu.agent_colour.get()
                 agent_1_settings = self.main_menu.agent_settings_1
+                agent_1_settings["colour"] = self.main_menu.agent_colour.get()
+                agent_1_settings["type"] = self.main_menu.agent_selection_1.get()
                 agent_2_settings = self.main_menu.agent_settings_2
+                agent_2_settings["colour"] = util.swap_colour(agent_1_settings["colour"])
+                agent_2_settings["type"] = self.main_menu.agent_selection_2.get()
+                iterations = self.main_menu.iterations
                 #run the new game in the controller
-                self.controller.ava_game(
-                    num_cols=cols, num_rows=rows, agent=agent, agent_colour=agent_colour
-                )
+                logging.debug("Agent vs Agent game created")
+                self.controller.new_ava_game(agent_1_settings, agent_2_settings, iterations)
 
 
 class MainMenuFrame(tk.Frame):
@@ -94,10 +99,13 @@ class MainMenuFrame(tk.Frame):
     Frame that contains the main menu for the program.
     Remains on the left of the screen throughout gameplay
     """
+    #general variables
     rows = 3
     cols = 3
     depth = [3,3]
     beliefs = [16,16]
+    iterations = 7
+
     def __init__(self, master: DisplayWindow):
         super().__init__(master=master, relief=tk.RAISED, bd=2)
         # define widgets for main menu frame
@@ -254,6 +262,10 @@ class MainMenuFrame(tk.Frame):
                 x = self.beliefs[1] = int(
                     min(max(self.beliefs[1] * (3*int(incr)+1)/2, 1), MAX_BELIEFS)
                 )
+            case "iters":
+                x = self.iterations = int(
+                    min(max(self.iterations + 2*(2*int(incr)-1), 1), MAX_ITERS)
+                )
 
         #update the correct label with the new text
         label["text"] = f"{x}"
@@ -301,6 +313,17 @@ class MainMenuFrame(tk.Frame):
                 ).pack()
             case "Agent vs Agent":
                 #place widgets required for two agent selections
+                tk.Label(self.frm_game_settings, text="Iterations").pack()
+                lbl_iters_value = tk.Label(self.frm_game_settings, text=str(self.iterations))
+                lbl_iters_value.pack()
+                tk.Button(
+                    master=self.frm_game_settings, text="-",
+                    command=partial(self.change_lbl, False, "iters", lbl_iters_value)
+                ).pack()
+                tk.Button(
+                    master=self.frm_game_settings, text="+",
+                    command=partial(self.change_lbl, True, "iters", lbl_iters_value)
+                ).pack()
                 tk.Label(self.frm_game_settings, text="Select Agent 1:").pack()
                 tk.OptionMenu(
                     self.frm_game_settings,

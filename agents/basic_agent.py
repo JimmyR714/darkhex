@@ -16,13 +16,13 @@ class BasicAgent(agents.agent.Agent):
     """
     MAX_DEPTH = 3
     MAX_BELIEFS = 20
-    def __init__(self, num_cols: int, num_rows: int, colour: str):
+    def __init__(self, num_cols: int, num_rows: int, settings: dict):
         """Create a basic agent"""
-        super().__init__(num_cols, num_rows, colour)
+        super().__init__(num_cols, num_rows, settings)
         self.belief_state = BeliefState.fresh(
             num_cols=num_cols,
             num_rows=num_rows,
-            agent_colour=colour,
+            agent_colour=settings["colour"],
             max_depth=self.MAX_DEPTH,
             max_beliefs=self.MAX_BELIEFS
         )
