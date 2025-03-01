@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.vscode/launch.json
+agents/trained_agents/
+
 # C extensions
 *.so
 

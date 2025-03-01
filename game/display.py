@@ -281,11 +281,11 @@ class MainMenuFrame(tk.Frame):
                     self.frm_game_settings,
                     self.agent_selection_1,
                     *agent_options,
-                    command=partial(self.update_agent_menu, 1)
+                    command=partial(self.update_agent_and_game_menu, 1)
                 ).pack()
                 self.frm_agent_settings_1 = tk.Frame(self.frm_game_settings)
+                self.update_agent_menu(1, self.agent_selection_1.get())
                 self.frm_agent_settings_1.pack()
-                self.update_agent_menu(1, "General")
                 tk.Label(self.frm_game_settings, text="Agent Colour:").pack()
                 tk.Radiobutton(
                     self.frm_game_settings,
@@ -306,21 +306,21 @@ class MainMenuFrame(tk.Frame):
                     self.frm_game_settings,
                     self.agent_selection_1,
                     *agent_options,
-                    command=partial(self.update_agent_menu, 1)
+                    command=partial(self.update_agent_and_game_menu, 1)
                 ).pack()
                 self.frm_agent_settings_1 = tk.Frame(self.frm_game_settings)
+                self.update_agent_menu(1, self.agent_selection_1.get())
                 self.frm_agent_settings_1.pack()
-                self.update_agent_menu(1, "General")
                 tk.Label(self.frm_game_settings, text="Select Agent 2:").pack()
                 tk.OptionMenu(
                     self.frm_game_settings,
                     self.agent_selection_2,
                     *agent_options,
-                    command=partial(self.update_agent_menu, 2)
+                    command=partial(self.update_agent_and_game_menu, 2)
                 ).pack()
                 self.frm_agent_settings_2 = tk.Frame(self.frm_game_settings)
+                self.update_agent_menu(2, self.agent_selection_2.get())
                 self.frm_agent_settings_2.pack()
-                self.update_agent_menu(2, "General")
                 tk.Label(self.frm_game_settings, text="Agent 1 Colour:").pack()
                 tk.Radiobutton(
                     self.frm_game_settings,
@@ -336,12 +336,24 @@ class MainMenuFrame(tk.Frame):
                 ).pack()
 
 
-    def update_agent_menu(self, agent_num : int = 1, agent_type: str = "General"):
+    def update_agent_and_game_menu(self, agent_num: int, agent_type: str):
+        """
+        Updates the game menu and agent menu, aligning them correctly
+        """
+        match agent_num:
+            case 1:
+                self.agent_selection_1.set(agent_type)
+            case 2:
+                self.agent_selection_2.set(agent_type)
+            case _:
+                raise ValueError("Invalid agent number")
+        self.update_game_menu(self.game_selection.get())
+
+
+    def update_agent_menu(self, agent_num : int, agent_type: str = "General"):
         """
         Change the agent menu that displays once we change our agent selection
         """
-        #TODO these aren't displaying
-        logging.debug("Updating agent menu with type %s, number %s", agent_type, agent_num)
         #choose the correct menu and settings to update
         if agent_num == 1:
             settings = self.agent_settings_1
@@ -362,29 +374,33 @@ class MainMenuFrame(tk.Frame):
                 settings["depth"] = tk.IntVar(value=3)
                 settings["beliefs"] = tk.IntVar(value=20)
                 #depth changing
-                tk.Label(frm, text="Depth").pack()
+                tk.Label(frm, text="Depth").grid(row=0, column=1, sticky="ew")
                 lbl_depth_value = tk.Label(master=frm, text=str(self.depth[agent_num-1]))
-                lbl_depth_value.pack()
                 tk.Button(
                     master=frm, text="-",
                     command=partial(self.change_lbl, False, f"depth_{agent_num}", lbl_depth_value)
-                ).pack()
+                ).grid(row=1, column=0, sticky="ew")
+                lbl_depth_value.grid(row=1, column=1, sticky="ew")
                 tk.Button(
                     master=frm, text="+",
                     command=partial(self.change_lbl, True, f"depth_{agent_num}", lbl_depth_value)
-                ).pack()
+                ).grid(row=1, column=2, sticky="ew")
                 #beliefs changing
-                tk.Label(frm, text="Beliefs").pack()
+                tk.Label(frm, text="Beliefs").grid(row=2, column=1, sticky="ew")
                 lbl_beliefs_value = tk.Label(master=frm, text=str(self.beliefs[agent_num-1]))
-                lbl_beliefs_value.pack()
                 tk.Button(
                     master=frm, text="-",
-                    command=partial(self.change_lbl, False, f"beliefs_{agent_num}", lbl_beliefs_value)
-                ).pack()
+                    command=partial(
+                        self.change_lbl, False, f"beliefs_{agent_num}", lbl_beliefs_value
+                    )
+                ).grid(row=3, column=0, sticky="ew")
+                lbl_beliefs_value.grid(row=3, column=1, sticky="ew")
                 tk.Button(
                     master=frm, text="+",
-                    command=partial(self.change_lbl, True, f"beliefs_{agent_num}", lbl_beliefs_value)
-                ).pack()
+                    command=partial(
+                        self.change_lbl, True, f"beliefs_{agent_num}", lbl_beliefs_value
+                    )
+                ).grid(row=3, column=2, sticky="ew")
 
 
 class GameFrame(tk.Frame):
