@@ -148,9 +148,10 @@ class MainMenuFrame(tk.Frame):
         btn_col_increase.grid(row=0, column=2, sticky="ew")
 
         #display selection
+        #TODO once you create a display it can never be removed
         lbl_displays = tk.Label(self, text="Displays")
         frm_displays = tk.Frame(self)
-        self.global_display = tk.IntVar()
+        self.global_display = tk.IntVar(value=1)
         btn_global_display = tk.Checkbutton(
             frm_displays,
             text="Global",
@@ -281,6 +282,7 @@ class MainMenuFrame(tk.Frame):
         agent_options = [
             "General",
             "Basic",
+            "RL"
         ]
         match game_type:
             case "Player vs Player":

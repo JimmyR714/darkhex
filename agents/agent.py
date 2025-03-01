@@ -1,5 +1,6 @@
 """Module containing the general agent class"""
 import random
+import logging
 
 class Agent():
     """
@@ -40,7 +41,7 @@ class Agent():
 
     def update_information(self, col: int, row: int, colour: str) -> bool:
         """
-        Recieve some updated information about the board.
+        Receive some updated information about the board.
         The controller of this agent will call this after we make a move.
         Necessary to find out whether our move was successful.
         
@@ -53,8 +54,10 @@ class Agent():
             
         Returns:
             True: When another move must be made.
+            
             False: When no other move must be made.
         """
+        logging.debug("Updating information in agent")
         self.board[row-1][col-1] = colour
         #i.e. if we discovered one of their pieces
         return self.colour != colour
