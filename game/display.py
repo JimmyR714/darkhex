@@ -18,7 +18,7 @@ MAX_ITERS = 25
 class DisplayWindow(tk.Tk):
     """
     The main window for the program. 
-    Upon initialisation, it contains only the menu frame,
+    Upon initialization, it contains only the menu frame,
     but this can be adjusted by starting a game.
     When a game is running, it may contain multiple 
     game frames so that multiple views can be seen simultaneously.

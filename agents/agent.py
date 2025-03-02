@@ -61,3 +61,10 @@ class Agent():
         self.board[row-1][col-1] = colour
         #i.e. if we discovered one of their pieces
         return self.colour != colour
+
+
+    def reset(self):
+        """
+        Reset the agent so it can play another game off the same settings
+        """
+        self.board = [["e"] * self.num_cols] * self.num_rows

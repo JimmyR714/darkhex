@@ -4,6 +4,7 @@ Module for the control of the program flow
 
 import logging
 import os
+import time
 from game import util as util
 import game.display as display
 import game.darkhex as darkhex
@@ -75,13 +76,26 @@ class Controller:
             move_result = None
             while move_result not in ["white_win", "black_win"]:
                 #play moves until one wins
-                if self.game.turn == agent_1_colour:
+                initial_turn = self.game.turn
+                #check whose turn it is
+                if initial_turn == agent_1_colour:
                     #agent 1's turn
-                    (col, row) = self.agent.move()
+                    this_agent = self.agent
                 else:
                     #agent 2's turn
-                    (col, row) = self.agent.move()
-                move_result = self.game.move(row=row, col=col, colour = self.game.turn)
+                    this_agent = self.agent2
+                #let the correct agent move
+                (col, row) = this_agent.move()
+                #check the results of the move
+                move_result = self.game.move(row=row, col=col, colour = initial_turn)
+                #update the information of the correct agent
+                match move_result:
+                    case "full_white":
+                        this_agent.update_information(col=col, row=row, colour="w")
+                    case "full_black":
+                        this_agent.update_information(col=col, row=row, colour="b")
+                    case "placed":
+                        this_agent.update_information(col=col, row=row, colour=initial_turn)
             if (agent_1_colour == "w") == (move_result == "white_win"):
                 #agent 1 has won
                 agent_1_wins += 1
@@ -91,6 +105,9 @@ class Controller:
                 logging.debug("Agent 2 has won")
             #reset game
             self.game.reset_board()
+            #reset agents
+            self.agent.reset()
+            self.agent2.reset()
         logging.debug("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
 
 
@@ -178,7 +195,6 @@ class Controller:
             self.agent2 = new_agent
         else:
             self.agent = new_agent
-
 
 
 def main():

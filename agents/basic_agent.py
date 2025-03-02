@@ -45,6 +45,16 @@ class BasicAgent(agents.agent.Agent):
         return another_move
 
 
+    def reset(self):
+        self.belief_state = BeliefState.fresh(
+            num_cols=self.num_cols,
+            num_rows=self.num_rows,
+            agent_colour=self.colour,
+            max_depth=self.MAX_DEPTH,
+            max_beliefs=self.MAX_BELIEFS
+        )
+
+
 class Belief():
     """
     A single belief within the belief state.
