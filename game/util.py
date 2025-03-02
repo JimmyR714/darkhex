@@ -164,4 +164,5 @@ def select_rl_agent(cols: int, rows: int, colour: str, current_path: str) -> str
     path = os.path.join(current_path, agent_path)
     if not os.path.exists(path):
         raise ValueError(f"No trained RL agent for these settings, checked path {path}")
+    logging.debug("Fetching agent from %s", path)
     return path

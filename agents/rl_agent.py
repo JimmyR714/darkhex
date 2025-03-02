@@ -26,9 +26,9 @@ class RLAgent(agents.agent.Agent):
     Agent that uses Rl techniques to choose moves
     """
     #TODO fix main bug that shows up from rllib
-    def __init__(self, num_cols: int, num_rows: int, colour: str,
+    def __init__(self, num_cols: int, num_rows: int, settings: dict,
                  rl_module: RLModule, algo: Algorithm = None):
-        super().__init__(num_cols, num_rows, colour)
+        super().__init__(num_cols, num_rows, settings)
         self.rl_module = rl_module
         self.algo = algo
         self.env = DarkHexEnv(config={
@@ -57,7 +57,7 @@ class RLAgent(agents.agent.Agent):
         return cls(
             num_cols=settings["num_cols"],
             num_rows=settings["num_rows"],
-            colour=settings["colour"],
+            settings=settings,
             rl_module=rl_module
         )
 
@@ -113,7 +113,7 @@ class RLAgent(agents.agent.Agent):
         return cls(
             num_cols=num_cols,
             num_rows=num_rows,
-            colour=colour,
+            settings={"colour": colour},
             rl_module=None,
             algo = config.build_algo(),
         )
@@ -124,7 +124,9 @@ class RLAgent(agents.agent.Agent):
         Reset the environment that the agent uses.
         Must be used at the start of a game.
         """
-        self.obs, self.info = self.env.reset()
+        _, self.info = self.env.reset()
+        #get our colour
+        self.obs = self.env.get_obs(self.colour)
 
 
     def move(self):
@@ -171,7 +173,7 @@ class RLAgent(agents.agent.Agent):
             self.obs = self.env.get_obs(self.colour)
         elif colour != self.colour and move_again:
             #when it is not our colour and move again is true, we found their piece
-            self.env.update_board("w", position, (2*int(colour == "w"))-1)
+            self.env.update_board(self.colour, position, (2*int(colour == "w"))-1)
             #get our new observation based on this move
             self.obs = self.env.get_obs(self.colour)
         else:
@@ -320,7 +322,7 @@ class DarkHexEnv(MultiAgentEnv):
         self.get_board(colour)[position] = value
 
 
-    def get_obs(self, colour:str) -> np.array:
+    def get_obs(self, colour:str) -> dict:
         """
         Return the current observations of a given colour
         """
@@ -344,7 +346,7 @@ def main():
     """
     num_cols = 4
     num_rows = 4
-    colour = "w"
+    colour = "b"
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
     agent.train(iterations=100)

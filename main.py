@@ -170,7 +170,7 @@ class Controller:
                         current_path=os.path.dirname(__file__)
                     )
                 )
-                self.agent.reset()
+                new_agent.reset()
             case _:
                 raise ValueError(f"Agent type \"{agent}\" does not exist.")
         #check which number agent this is
