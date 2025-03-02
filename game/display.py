@@ -35,9 +35,41 @@ class DisplayWindow(tk.Tk):
         # add key frames
         self.main_menu = MainMenuFrame(self)
         self.game_frames = []
+        self.num_game_frames = 0
 
         # grid frames
+        self.fullscreen = False
         self.main_menu.grid(row=0, column=0, sticky="ns")
+
+        #window settings
+        self.bind("<F11>", self.toggle_fullscreen)
+        self.bind("<Escape>", self.end_fullscreen)
+        self.bind("<Configure>", self.resize)
+
+    def toggle_fullscreen(self, _=None):
+        """
+        Toggle between a fullscreen and non-fullscreen window
+        """
+        self.fullscreen = not self.fullscreen
+        self.attributes("-fullscreen", self.fullscreen)
+        return "break"
+
+
+    def end_fullscreen(self, _=None):
+        """
+        Turn fullscreen off
+        """
+        self.fullscreen = False
+        self.attributes("-fullscreen", False)
+        return "break"
+
+
+    def resize(self, _=None):
+        """
+        Resize items within the window after a change of window size
+        """
+        for gf in self.game_frames:
+            gf.resize(width=self.winfo_screenwidth(), height=self.winfo_screenheight())
 
 
     def new_game(self):
@@ -60,6 +92,8 @@ class DisplayWindow(tk.Tk):
 
         #reset previous game frames
         self.game_frames.clear()
+        #set the number of game frames to be created for correct sizing
+        self.num_game_frames = len(displays)
         #create new game frames
         for d in displays:
             self.game_frames.append(
@@ -432,9 +466,6 @@ class GameFrame(tk.Frame):
     """
     Frame for showing a game in.
     """
-    # TODO calculate hex size
-    SIZE = 40
-
     def __init__(self, master: DisplayWindow, frame_colour: str, num_cols: int, num_rows: int):
         super().__init__()
         self.display_window=master
@@ -442,7 +473,13 @@ class GameFrame(tk.Frame):
         self.game_title = tk.Label(self, text="It is white's turn", pady=15)
         self.game_title.pack()
         self.turn="w"
+        self.num_cols = num_cols
+        self.num_rows = num_rows
         self.hexes = {}
+        self.hex_size = self.calc_hex_size(
+            screen_width = self.master.winfo_screenwidth(),
+            screen_height = self.master.winfo_screenheight()
+        )
         frm_hexes = tk.Frame(self)
         #create all necessary hex buttons
         for row_index in range(num_rows+2):  #for each row
@@ -459,7 +496,7 @@ class GameFrame(tk.Frame):
                     cmd = partial(self.play_move, row_index, col_index)
                     colour = "grey"
                 # create the hex
-                button = HexButton(frm_hexes, self.SIZE, command=cmd, init_colour=colour)
+                button = HexButton(frm_hexes, self.hex_size, command=cmd, init_colour=colour)
                 # add this button to hexes
                 self.hexes[(col_index,row_index)] = button
                 # place widgets
@@ -538,6 +575,20 @@ class GameFrame(tk.Frame):
         self.game_title.config(text=f"It is {util.colour_map[self.turn]}'s turn")
 
 
+    def calc_hex_size(self, screen_width: float, screen_height: float) -> float:
+        """
+        Calculate the hex size that allows all hexes to fit.
+        Sets hex size to the calculated value and returns it.
+        """
+        #TODO for now, this works for the hexes with gaps in between, not for close ones
+        menu_width = 400 #may be wrong
+        hex_width = 2*(self.num_cols+2) + (self.num_rows+2)
+        num_gfs = self.master.num_game_frames
+        return (1.0 / num_gfs) * 0.7 * min(
+            (screen_width-menu_width)/hex_width, screen_height / (self.num_rows+2)
+        )
+
+
 class HexButton(tk.Canvas):
     """
     A singular hexagonal button for the game.
@@ -582,7 +633,7 @@ class HexButton(tk.Canvas):
         self.create_polygon(coords, outline=self.BORDER_COLOUR, fill=colour, width=1)
 
     #TODO change so it is visible
-    def _on_press(self, event):
+    def _on_press(self, _=None):
         """
         Change canvas so it looks pressed down.
         """
@@ -590,7 +641,7 @@ class HexButton(tk.Canvas):
             self.configure(relief="sunken")
 
     #TODO change so it is visible
-    def _on_release(self, event):
+    def _on_release(self, _=None):
         """
         Change canvas so it doesn't look pressed down.
         """
