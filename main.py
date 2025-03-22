@@ -4,7 +4,6 @@ Module for the control of the program flow
 
 import logging
 import os
-import time
 from game import util as util
 import game.display as display
 import game.darkhex as darkhex
@@ -174,7 +173,6 @@ class Controller:
                     num_cols=num_cols, num_rows=num_rows, settings=agent_settings
                 )
             case "Basic":
-                #TODO iterated forever in ava game; needs testing
                 new_agent = agents.basic_agent.BasicAgent(
                     num_cols=num_cols, num_rows=num_rows, settings=agent_settings
                 )

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import logging
 import json
+import random
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.connectors.env_to_module import FlattenObservations
@@ -91,7 +92,12 @@ class RLAgent(agents.agent.Agent):
                 )
             )
             .training(
+                gamma=0.9,
+                lr=0.001,
+                kl_coeff=0.3,
                 vf_loss_coeff=0.005,
+                use_kl_loss=True,
+                clip_param=0.2
             )
             .rl_module(
                 model_config=DefaultModelConfig(
@@ -110,6 +116,13 @@ class RLAgent(agents.agent.Agent):
                 ),
             )
         )
+        #tune the agent
+        #tune.Tuner(
+        #    "PPO",
+        #    run_config=tune.RunConfig(stop={"training_iteration": 1}),
+        #    param_space=config,
+        #).fit()
+        #finish creating agent object
         return cls(
             num_cols=num_cols,
             num_rows=num_rows,
@@ -144,14 +157,39 @@ class RLAgent(agents.agent.Agent):
         #extract action distribution
         action_dist = model_outputs["action_dist_inputs"][0].numpy()
 
-        #get best action for us
-        sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1], reverse=True)
+        #keep only positive values
+        total_squared_value = 0.0
+        positive_actions = []
+        for action in enumerate(action_dist):
+            action_value = action[1]**2
+            if action[1] > 0 and self.env.get_board(self.colour)[action[0]] == 0:
+                positive_actions.append((action[0], action_value))
+                total_squared_value += action_value
 
-        best_action = None
-        for action in sorted_dist:
-            best_action = action[0]
-            if self.env.get_board(self.colour)[action[0]] == 0:
-                break
+        if len(positive_actions) > 0:
+            #convert to a probability distribution
+            #each action has probability: action_value^2 / sum of squares
+            current_prob = 0.0
+            for i, _ in enumerate(positive_actions):
+                current_prob += (positive_actions[i][1] / total_squared_value)
+                positive_actions[i] = (positive_actions[i][0], current_prob)
+            logging.debug("Action probability distribution is %s", positive_actions)
+            p = random.uniform(0,1)
+            logging.debug("Chosen probability is %s", p)
+            best_action = None
+            for action in positive_actions:
+                if action[1] > p:
+                    best_action = action[0]
+                    break
+        else:
+            #just choose the least bad action for us
+            sorted_dist = sorted(enumerate(action_dist), key=lambda x: x[1], reverse=True)
+
+            best_action = None
+            for action in sorted_dist:
+                best_action = action[0]
+                if self.env.get_board(self.colour)[action[0]] == 0:
+                    break
         logging.debug("Best action is %s", best_action)
 
         #return move for abstract game
@@ -346,10 +384,10 @@ def main():
     """
     num_cols = 4
     num_rows = 4
-    colour = "b"
+    colour = "w"
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
-    agent.train(iterations=100)
+    agent.train(iterations=50)
     logging.info("Agent trained")
     logging.debug(agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(
