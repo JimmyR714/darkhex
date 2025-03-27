@@ -226,7 +226,7 @@ class RLAgent(agents.agent.Agent):
         """
         Train the algorithm and print the results
         """
-        # Train it for 5 iterations
+        # Train it for some number of iterations
         for _ in range(iterations):
             pprint(self.algo.train())
         #save to our rl module
@@ -382,16 +382,16 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 4
-    num_rows = 4
-    colour = "w"
+    num_cols = 5
+    num_rows = 5
+    colour = "b"
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
     agent.train(iterations=50)
     logging.info("Agent trained")
     logging.debug(agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(
-            num_cols) + "x" + str(num_rows) + "_" + colour + "_new")
+            num_cols) + "x" + str(num_rows) + "_" + colour)
     ))
 
 
