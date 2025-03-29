@@ -4,7 +4,6 @@ Module for the control of the program flow
 
 import logging
 import os
-import time
 from game import util as util
 import game.display as display
 import game.darkhex as darkhex
