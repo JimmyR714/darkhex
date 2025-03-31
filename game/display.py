@@ -29,12 +29,11 @@ class DisplayWindow(tk.Tk):
         # configure layout
         self.title = "Dark Hex"
         self.controller = controller
-        self.rowconfigure(0, minsize=800, weight=1)
-        self.columnconfigure(1, minsize=800, weight=1)
+        self.rowconfigure(0, minsize=900, weight=1)
 
         # add key frames
         self.main_menu = MainMenuFrame(self)
-        self.game_frames = []
+        self.game_frames : list[tk.Frame] = []
         self.num_game_frames = 0
 
         # grid frames
@@ -84,6 +83,11 @@ class DisplayWindow(tk.Tk):
             displays.append("black")
 
         #reset previous game frames
+        for i in range(3):
+            self.columnconfigure(1+i, minsize=0, weight=0)
+        for frame in self.game_frames:
+            frame.grid_forget()
+            frame.destroy()
         self.game_frames.clear()
         #set the number of game frames to be created for correct sizing
         self.num_game_frames = len(displays)
@@ -93,7 +97,9 @@ class DisplayWindow(tk.Tk):
                 GameFrame(master=self, frame_colour=d, num_cols=cols, num_rows=rows)
             )
         #place each game frame
+        gf_size = (self.winfo_screenwidth() - 200) / self.num_game_frames
         for i, gf in enumerate(self.game_frames):
+            self.columnconfigure(1+i, minsize=gf_size, weight=0)
             gf.grid(row=0, column=1+i, sticky="nsew")
 
         game_type = self.main_menu.game_selection.get()
@@ -109,10 +115,6 @@ class DisplayWindow(tk.Tk):
                 self.controller.new_pva_game(agent_settings)
                 logging.debug("Player vs Agent game created")
             case "Agent vs Agent":
-                #TODO get settings correctly
-                agent_1 = self.main_menu.agent_selection_1.get()
-                agent_2 = self.main_menu.agent_selection_2.get()
-                agent_1_colour = self.main_menu.agent_colour.get()
                 agent_1_settings = self.main_menu.agent_settings_1
                 agent_1_settings["colour"] = self.main_menu.agent_colour.get()
                 agent_1_settings["type"] = self.main_menu.agent_selection_1.get()
@@ -464,7 +466,8 @@ class GameFrame(tk.Frame):
     Frame for showing a game in.
     """
     def __init__(self, master: DisplayWindow, frame_colour: str, num_cols: int, num_rows: int):
-        super().__init__()
+        print((master.winfo_screenwidth() - 400) / master.num_game_frames)
+        super().__init__(width=(master.winfo_screenwidth() - 200) / master.num_game_frames)
         self.display_window=master
         self.frame_colour = frame_colour
         self.game_title = tk.Label(self, text="It is white's turn", pady=15)
@@ -479,7 +482,7 @@ class GameFrame(tk.Frame):
         )
         #create all necessary hex buttons
         for row_index in range(num_rows+2):  #for each row
-            frm_hexes = tk.Frame(self)
+            frm_hexes = tk.Frame(self) #create row frame
             for col_index in range(num_cols+2):
                 #check if this is a bordering white cell
                 if col_index == 0 or col_index == num_cols+1:
@@ -506,8 +509,10 @@ class GameFrame(tk.Frame):
                     pady=0,
                     sticky="nsew"
                 )
-            frm_hexes.place(x=100+(row_index*self.hex_size*math.sqrt(3)/2), y=100+(2*row_index*self.hex_size))
-
+            frm_hexes.place(
+                x=50 + row_index*self.hex_size*math.sqrt(3)/2,
+                y=50 + 2*row_index*self.hex_size
+            )
 
     def play_move(self, row: int, col: int):
         """
@@ -579,7 +584,7 @@ class GameFrame(tk.Frame):
         Sets hex size to the calculated value and returns it.
         """
         #TODO for now, this works for the hexes with gaps in between, not for close ones
-        menu_width = 400 #may be wrong
+        menu_width = 200 #may be wrong
         hex_width = 2*(self.num_cols+2) + (self.num_rows+2)
         num_gfs = self.master.num_game_frames
         return (1.0 / num_gfs) * 0.7 * min(
