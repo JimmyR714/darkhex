@@ -2,11 +2,18 @@
     "cSpell.words": [
         "argmin",
         "coeff",
+        "columnspan",
         "darkhex",
         "fcnet",
+        "gameframe",
         "HEXY",
         "hiddens",
         "LTSM",
+        "newgame",
+        "offvalue",
+        "onvalue",
+        "padx",
+        "pady",
         "rllib"
     ]
 }

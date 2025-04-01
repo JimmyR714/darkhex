@@ -4,7 +4,7 @@ Module for the control of the program flow
 
 import logging
 import os
-from game import util as util
+import game.util as util
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
@@ -118,10 +118,10 @@ class Controller:
             #make the move in the abstract game
             result = self.game.move(row, col, turn)
         #update each game frame appropriately
-        #TODO fix bug where pressing your own colour hex tells opponent where it is
-        logging.debug("Updating game frames")
-        for gf in self.window.game_frames:
-            gf.update_board(row, col, result)
+        if (result != "full_white" or turn != "w") and (result != "full_black" or turn != "b"):
+            logging.debug("Updating game frames")
+            for gf in self.window.game_frames:
+                gf.update_board(row, col, result)
 
         #check whether the agent needs to move
         logging.debug("Checking whether agent must move")

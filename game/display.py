@@ -30,6 +30,9 @@ class DisplayWindow(tk.Tk):
         self.title = "Dark Hex"
         self.controller = controller
         self.rowconfigure(0, minsize=900, weight=1)
+        self.won = False
+        self.win_title = tk.Label(self, text="")
+        self.win_title.grid(row=1, column=1, columnspan=3)
 
         # add key frames
         self.main_menu = MainMenuFrame(self)
@@ -127,6 +130,14 @@ class DisplayWindow(tk.Tk):
                 self.controller.new_ava_game(agent_1_settings, agent_2_settings, iterations)
 
 
+    def win_game(self, colour: str):
+        """
+        Outputs to the user that a game has been won, and who won it
+        """
+        if not self.won:
+            self.won = True
+            self.win_title.config(text=f"{util.colour_map[colour]} has won!")
+
 class MainMenuFrame(tk.Frame):
     """
     Frame that contains the main menu for the program.
@@ -145,7 +156,6 @@ class MainMenuFrame(tk.Frame):
         # new game button
         btn_newgame = tk.Button(self, text="New Game", command=master.new_game)
 
-        #TODO generalise this code, also depth and beliefs in agent menu
         # row changing
         lbl_rows = tk.Label(self, text="Rows")
         frm_rows = tk.Frame(self)
@@ -181,7 +191,6 @@ class MainMenuFrame(tk.Frame):
         btn_col_increase.grid(row=0, column=2, sticky="ew")
 
         #display selection
-        #TODO once you create a display it can never be removed
         lbl_displays = tk.Label(self, text="Displays")
         frm_displays = tk.Frame(self)
         self.global_display = tk.IntVar(value=1)
@@ -466,7 +475,6 @@ class GameFrame(tk.Frame):
     Frame for showing a game in.
     """
     def __init__(self, master: DisplayWindow, frame_colour: str, num_cols: int, num_rows: int):
-        print((master.winfo_screenwidth() - 400) / master.num_game_frames)
         super().__init__(width=(master.winfo_screenwidth() - 200) / master.num_game_frames)
         self.display_window=master
         self.frame_colour = frame_colour
@@ -564,17 +572,21 @@ class GameFrame(tk.Frame):
 
             case "black_win":
                 logging.info("Black has won!")
+                self.display_window.win_game("b")
                 self.display_window.new_game()
                 # finish game with black winning
 
             case "white_win":
                 logging.info("White has won!")
+                self.display_window.win_game("w")
                 self.display_window.new_game()
                 # finish game with white winning
 
 
     def update_title(self) -> None:
         """Updates the title with the person whose turn it is"""
+        #reset win title
+        self.display_window.win_title.config(text="")
         self.game_title.config(text=f"It is {util.colour_map[self.turn]}'s turn")
 
 
@@ -583,7 +595,6 @@ class GameFrame(tk.Frame):
         Calculate the hex size that allows all hexes to fit.
         Sets hex size to the calculated value and returns it.
         """
-        #TODO for now, this works for the hexes with gaps in between, not for close ones
         menu_width = 200 #may be wrong
         hex_width = 2*(self.num_cols+2) + (self.num_rows+2)
         num_gfs = self.master.num_game_frames
@@ -636,7 +647,6 @@ class HexButton(tk.Canvas):
         self.create_polygon(coords, outline=self.BORDER_COLOUR, fill=colour, width=2)
 
 
-    #TODO change so it is visible
     def _on_press(self, _=None):
         """
         Change canvas so it looks pressed down.
@@ -645,7 +655,6 @@ class HexButton(tk.Canvas):
             self.configure(relief="sunken")
 
 
-    #TODO change so it is visible
     def _on_release(self, _=None):
         """
         Change canvas so it doesn't look pressed down.

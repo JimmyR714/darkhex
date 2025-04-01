@@ -26,7 +26,8 @@ class RLAgent(agents.agent.Agent):
     """
     Agent that uses Rl techniques to choose moves
     """
-    #TODO fix main bug that shows up from rllib
+    #Note that rllib is migrating to a newer interface, some elements of this agent
+    #May not work with it one day
     def __init__(self, num_cols: int, num_rows: int, settings: dict,
                  rl_module: RLModule, algo: Algorithm = None):
         super().__init__(num_cols, num_rows, settings)
@@ -296,7 +297,6 @@ class DarkHexEnv(MultiAgentEnv):
         """
         Do one step in this episode
         """
-        #TODO temp action_dict is checked with this
         if "w" in action_dict:
             action : int = action_dict["w"]
             initial_turn = "w"
