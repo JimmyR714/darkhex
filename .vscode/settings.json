@@ -9,11 +9,13 @@
         "HEXY",
         "hiddens",
         "LTSM",
+        "memoryless",
         "newgame",
         "offvalue",
         "onvalue",
         "padx",
         "pady",
+        "pgmpy",
         "rllib"
     ]
 }
