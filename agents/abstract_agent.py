@@ -8,6 +8,7 @@ from pgmpy.models import FunctionalBayesianNetwork
 from pgmpy.factors.hybrid import FunctionalCPD
 import pyro.distributions as distribution
 from agents.agent import Agent
+import game.util as util
 
 class AbstractAgent(Agent):
     """
@@ -28,20 +29,55 @@ class AbstractAgent(Agent):
         self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = None
         self.initialise_networks()
         self.weightings : dict[str, int] = settings["weightings"]
+        self.opponents_unseen = 0
+        self.empty_cells = num_cols * num_rows
 
 
     def move(self):
         """
         Make a move by the agent. 
-        We search for the correct move in multiple belief states,
+        We search for the correct move in the most likely states
         and return the one with the highest expected gain
         """
+        # first simulate the bayesian networks to find most likely places of their cells
+        cell_count = {}
+        for row in range(self.num_rows):
+            for col in range(self.num_cols):
+                # simulate network for 1000 samples
+                sim_outputs = self.cell_networks[(col, row)].simulate(n_samples=1000)
+                cell_count.update({(col,row): (sim_outputs[(col, row)] == 1).sum()})
+        # for now, we just place cells in the locations that were most common
+        # TODO further rounds of simulation?
+        guessed_cells = []
+        for _ in range(self.opponents_unseen):
+            max_cell = max(cell_count, key=cell_count.get)
+            guessed_cells.append(max_cell)
+            del cell_count[max_cell]
+        fake_board = self.fake_board(guessed_cells)
 
 
     def update_information(self, col: int, row: int, colour: str):
         """
         Update our belief system with the new information
         """
+        move_again = super().update_information(col, row, colour)
+        if colour != self.colour:
+            # we know (col, row) contains their colour
+            self.update_cell_cpd(col, row, distribution.Bernoulli(1))
+            # we found one of their cells
+            self.opponents_unseen -= 1
+        else:
+            # we know (col, row) contains our colour
+            self.update_cell_cpd(col, row, distribution.Bernoulli(0))
+            # the opponent will play somewhere that we haven't seen it
+            self.opponents_unseen += 1
+            self.empty_cells -= 2
+        self.set_cell_cpds(
+            cells=self._empty_cells(),
+            dist=distribution.Bernoulli(self.opponents_unseen / self.empty_cells)
+        )
+        #TODO find a better distribution for the cell cpds
+        return move_again
 
 
     def reset(self):
@@ -58,7 +94,19 @@ class AbstractAgent(Agent):
         Set a list of cell cpds to be the same distribution
         """
         for cell in cells:
-            self.cell_cpds[cell] = FunctionalCPD(cell, dist)
+            self.update_cell_cpd(cell[0], cell[1], dist)
+
+
+    def update_cell_cpd(self, col: int, row: int, dist: distribution):
+        """
+        Updates a single cell cpd to be the new distribution. 
+        Resets the relevant cell cpd in all models it is present.
+        """
+        new_cpd = FunctionalCPD((col,row), dist)
+        for cell in self._other_cells(col, row):
+            self.cell_networks[cell].remove_cpds(self.cell_cpds[(col,row)])
+            self.cell_networks[cell].add_cpds(new_cpd)
+        self.cell_cpds[(col,row)] = new_cpd
 
 
     def initialise_networks(self):
@@ -124,6 +172,9 @@ class AbstractAgent(Agent):
 
         assert self.cell_cpds is not None
 
+        def init_fn(parent) -> int:
+            return 0
+
         # create a network centered around each node
         cell_networks = {}
         for row in range(self.num_rows):
@@ -131,7 +182,7 @@ class AbstractAgent(Agent):
                 # first create the cpd for this cell
                 total_weighting = 0
                 current_parents = set()
-                current_fn = lambda parent: 0
+                current_fn = init_fn
                 # determine distribution based on some conditions
                 for cond in conditions:
                     if self.weightings[cond] > 0:
@@ -140,24 +191,50 @@ class AbstractAgent(Agent):
                             cond = cond,
                             cells = valid_cells[cond](col, row)
                         )
-                        current_fn = lambda parent: current_fn(parent) + new_fn(parent)
+                        def updated_fn(parent):
+                            current_fn(parent) + new_fn(parent)
+                        current_fn = updated_fn
                         total_weighting += new_weighting
                         current_parents.union(new_parents)
                 cpd = FunctionalCPD(
                     variable=(col, row),
-                    #for now, we use a beta distribution with 
+                    #for now, we use a beta distribution with
                     # alpha = (weightings * present values)^2
                     # beta = total weighting
                     fn=lambda parent: distribution.Beta(current_fn(parent)**2, total_weighting),
                     parents=list(current_parents)
                 )
                 #now we create the network for this cell
-                network_edges = [((x,y), (col,row)) for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row]
+                network_edges = self._other_cells(col, row)
                 model = FunctionalBayesianNetwork(network_edges)
                 model.add_cpds(cpd)
-                cell_cpds = [self.cell_cpds[y][x] for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row]
+                cell_cpds = self._other_cells(col, row)
                 model.add_cpds(cell_cpds)
                 cell_networks.update({(col,row): model})
+
+
+    def fake_board(self, cells: list[tuple[int, int]]) -> list[list[str]]:
+        """
+        Creates a fake board based on what we know and extra guessed cells
+        """
+        new_board = [row.copy() for row in self.board]
+        for cell in cells:
+            new_board[cell[1]][cell[0]] = util.swap_colour(self.colour)
+        return new_board
+
+
+    def _empty_cells(self) -> list[tuple[int, int]]:
+        """
+        Return a list of the empty cells on the board
+        """
+        return [(x,y) for x in range(self.num_cols) for y in range(self.num_rows) if self.board[y][x] == 'e']
+
+
+    def _other_cells(self, col: int, row: int) -> list[tuple[int, int]]:
+        """
+        Return a list of all cells other than the input one
+        """
+        return [self.cell_cpds[y][x] for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row]
 
 
 # For the hex AI, we require some way of returning value of the move,
