@@ -3,11 +3,11 @@ Module that includes an agent that has an abstracted perfect view of the board,
 The imperfect aspect is included using a belief system that the agent never sees.
 """
 
-from agents.agent import Agent
+from collections.abc import Callable
 from pgmpy.models import FunctionalBayesianNetwork
 from pgmpy.factors.hybrid import FunctionalCPD
-import pyro.distributions as dist
-
+import pyro.distributions as distribution
+from agents.agent import Agent
 
 class AbstractAgent(Agent):
     """
@@ -20,8 +20,14 @@ class AbstractAgent(Agent):
         """
         super().__init__(num_cols, num_rows, settings)
         # assign all settings here
-        self.cell_networks = self.initialise_networks()
-        self.weightings = settings["weightings"]
+        self.cell_cpds : dict[tuple[int,int], FunctionalCPD] = None
+        self.set_cell_cpds(
+            cells=[(x,y) for x in range(self.num_cols) for y in range(self.num_rows)],
+            dist=distribution.Bernoulli(0)
+        )
+        self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = None
+        self.initialise_networks()
+        self.weightings : dict[str, int] = settings["weightings"]
 
 
     def move(self):
@@ -39,30 +45,120 @@ class AbstractAgent(Agent):
 
 
     def reset(self):
-        self.cell_networks = self.initialise_networks()
+        self.set_cell_cpds(
+            cells=[(x,y) for x in range(self.num_cols) for y in range(self.num_rows)],
+            dist=distribution.Bernoulli(0)
+        )
+        self.initialise_networks()
         return super().reset()
 
 
-    def initialise_networks(self) -> list[list[FunctionalBayesianNetwork]]:
+    def set_cell_cpds(self, cells: list[tuple[int, int]], dist: distribution):
         """
-        Create the Bayesian Networks that contains our beliefs
+        Set a list of cell cpds to be the same distribution
         """
+        for cell in cells:
+            self.cell_cpds[cell] = FunctionalCPD(cell, dist)
+
+
+    def initialise_networks(self):
+        """
+        Create the Bayesian Networks that contain our beliefs.
+        Requires that the cell cpds have been set
+        """
+        def cell_exists(cell) -> bool:
+            """
+            Check whether a potential cell exists
+            
+            Parameters:
+                cell: tuple[int, int] - The cell that we are checking the existence of.
+            """
+            return cell[0] >= 0 and cell[1] >= 0 and cell[0] < self.num_cols and cell[1] < self.num_rows
+
+        def add_cond(cond: str, cells: list[tuple[int, int]]) -> tuple[(Callable), set[int], int]:
+            """
+            Adds a condition to the conditional probability distribution we are creating. 
+            All elements returned should be combined with the currently maintained values.
+            
+            Parameters:
+                cond: str - The condition we will be adding.
+                cells: list[tuple[int, int]] - The cells that the condition includes
+                
+            Returns:
+                fn: function[dict, int] - The function after adding the condition.
+                parents: set[int] - The parents used in this condition.
+                cond_weightings : int - The sum of weightings from this condition.
+            """
+            cond_weighting = 0
+            parents = set()
+            fn = lambda parent: 0
+            # for each cell valid in this condition
+            for cell in cells:
+                if cell_exists(cell):
+                    # add the cell to the function
+                    cond_weighting += self.weightings[cond]
+                    parents.add(cell)
+                    fn = lambda parent: fn(parent) + self.weightings[cond] * parent[cell]
+                    # note this may result in too much recursion?
+            return (fn, parents, cond_weighting)
+
+        # note here top left playable cell is (0,0), (col, row)
+
+        conditions = [
+            "width_1", "width_2_vc", "width_2_semi_vc"
+        ]
+        valid_cells = {
+            "width_1": lambda col, row: [
+                (col-1, row), (col, row-1), (col+1, row-1),
+                (col+1, row), (col, row+1), (col-1,row+1)
+            ],
+            "width_2_vc": lambda col, row: [
+                (col+1, row-2), (col+2, row-1), (col+1, row+1),
+                (col-1, row+1), (col-2, row+1), (col-1, row-1)
+            ],
+            "width_2_semi_vc": lambda col, row: [
+                (col+2, row-1), (col+2, row), (col, row+2),
+                (col-2, row+2), (col-2, row), (col, row-2)
+            ]
+        }
+
+        assert self.cell_cpds is not None
+
         # create a network centered around each node
+        cell_networks = {}
         for row in range(self.num_rows):
             for col in range(self.num_cols):
+                # first create the cpd for this cell
                 total_weighting = 0
-                # first, create our model using only cpds based on distance from us
-                if self.weightings["width_1"] > 0:
-                    # add weightings of all cells within 1 distance
-                    width_1_cpd = FunctionalCPD(
-                        variable=(col, row),
-                        fn=self.weightings["width_1"], # add function here
-                        parents=[] #add parents here
-                    )
-                if self.weightings["width_2"] > 0:
-                    # add weightings of all cells within 2 distance
-                    width_2_cpd = FunctionalCPD()
-                
+                current_parents = set()
+                current_fn = lambda parent: 0
+                # determine distribution based on some conditions
+                for cond in conditions:
+                    if self.weightings[cond] > 0:
+                        # add weightings of all cells within 1 distance
+                        new_fn, new_parents, new_weighting = add_cond(
+                            cond = cond,
+                            cells = valid_cells[cond](col, row)
+                        )
+                        current_fn = lambda parent: current_fn(parent) + new_fn(parent)
+                        total_weighting += new_weighting
+                        current_parents.union(new_parents)
+                cpd = FunctionalCPD(
+                    variable=(col, row),
+                    #for now, we use a beta distribution with 
+                    # alpha = (weightings * present values)^2
+                    # beta = total weighting
+                    fn=lambda parent: distribution.Beta(current_fn(parent)**2, total_weighting),
+                    parents=list(current_parents)
+                )
+                #now we create the network for this cell
+                network_edges = [((x,y), (col,row)) for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row]
+                model = FunctionalBayesianNetwork(network_edges)
+                model.add_cpds(cpd)
+                cell_cpds = [self.cell_cpds[y][x] for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row]
+                model.add_cpds(cell_cpds)
+                cell_networks.update({(col,row): model})
+
 
 # For the hex AI, we require some way of returning value of the move,
 # ideally the value of multiple moves to add to a large expected value
