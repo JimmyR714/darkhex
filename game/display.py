@@ -321,10 +321,12 @@ class MainMenuFrame(tk.Frame):
         for widget in self.frm_game_settings.winfo_children():
             widget.destroy()
         # agent selection
+        # ADD NEW AGENT HERE
         agent_options = [
             "General",
             "Basic",
-            "RL"
+            "RL",
+            "Abstract"
         ]
         match game_type:
             case "Player vs Player":
@@ -433,6 +435,7 @@ class MainMenuFrame(tk.Frame):
             for widget in frm.winfo_children():
                 widget.destroy()
         #update menu based on selection
+        # ADD AGENT SETTINGS HERE
         match agent_type:
             case "General":
                 #parameter currently does nothing
@@ -468,6 +471,9 @@ class MainMenuFrame(tk.Frame):
                         self.change_lbl, True, f"beliefs_{agent_num}", lbl_beliefs_value
                     )
                 ).grid(row=3, column=2, sticky="ew")
+            case "Abstract":
+                #TODO create agent settings menu
+                settings["width_1"] = tk.IntVar()
 
 
 class GameFrame(tk.Frame):

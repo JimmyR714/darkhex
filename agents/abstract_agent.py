@@ -43,8 +43,8 @@ class AbstractAgent(Agent):
         cell_count = {}
         for row in range(self.num_rows):
             for col in range(self.num_cols):
-                # simulate network for 1000 samples
-                sim_outputs = self.cell_networks[(col, row)].simulate(n_samples=1000)
+                # simulate network for 100 samples
+                sim_outputs = self.cell_networks[(col, row)].simulate(n_samples=100)
                 cell_count.update({(col,row): (sim_outputs[(col, row)] == 1).sum()})
         # for now, we just place cells in the locations that were most common
         # TODO further rounds of simulation?
@@ -54,6 +54,7 @@ class AbstractAgent(Agent):
             guessed_cells.append(max_cell)
             del cell_count[max_cell]
         fake_board = self.fake_board(guessed_cells)
+        # run Hex AI on the fake board
 
 
     def update_information(self, col: int, row: int, colour: str):
@@ -227,25 +228,43 @@ class AbstractAgent(Agent):
         """
         Return a list of the empty cells on the board
         """
-        return [(x,y) for x in range(self.num_cols) for y in range(self.num_rows) if self.board[y][x] == 'e']
+        return [
+            (x,y) for x in range(self.num_cols) for y in range(self.num_rows) if self.board[y][x] == 'e'
+        ]
 
 
     def _other_cells(self, col: int, row: int) -> list[tuple[int, int]]:
         """
         Return a list of all cells other than the input one
         """
-        return [self.cell_cpds[y][x] for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row]
+        return [
+            self.cell_cpds[y][x] for x in range(self.num_cols) for y in range(self.num_rows) if x!=col and y!=row
+        ]
 
 
 # For the hex AI, we require some way of returning value of the move,
 # ideally the value of multiple moves to add to a large expected value
 # accumulation, so we can calculate the true best expected value of a move
 
-# Potentially use Bayesian Networks representing probability of
-# them having a piece in a cell rather than Belief States
+class HexAgent():
+    """
+    Class for the base Hex AI that the abstracted agent uses.
+    """
+    def __init__(self, agent_colour: str):
+        pass
 
-# We can use the idea that if an opponent has played in one cell, it is fairly likely
-# That they have played in another nearby, or in the same line
 
-# Maybe instead of Bayesian Network, we use Markov network,
-# And we make the assumption that each game state is memoryless
+    def best_move(self, board: list[list[str]]) -> tuple[int, int]:
+        """
+        Search for the best move in a given board.
+        Returns:
+            move: tuple[int, int] - The chosen best move. The top left cell is (0,0), (col, row).
+        """
+
+
+    def board_scores(self, board: list[list[str]]) -> list[list[int]]:
+        """
+        Find the expected values of playing in each cell within the board.
+        Returns:
+            board: list[list[int]] - The scores of every cell on the board.
+        """

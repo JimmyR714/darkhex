@@ -1,9 +1,15 @@
 """
-Module for the control of the program flow
+Main module for the control of the program flow.
+
+To add an agent to the system:
+- Add a case to the create agent function for the new name of the agent
+- Add the agent name to the agent_options list in display.MainMenuFrame.update_game_menu
+- Add any agent settings to display.MainMenuFrame.update_agent_menu
 """
 
 import logging
 import os
+import agents.abstract_agent
 import game.util as util
 import game.display as display
 import game.darkhex as darkhex
@@ -186,6 +192,12 @@ class Controller:
                     )
                 )
                 new_agent.reset()
+            case "Abstract":
+                new_agent = agents.abstract_agent.AbstractAgent(
+                    num_cols=num_cols,
+                    num_rows=num_rows,
+                    settings=agent_settings
+                )
             case _:
                 raise ValueError(f"Agent type \"{agent}\" does not exist.")
         #check which number agent this is
