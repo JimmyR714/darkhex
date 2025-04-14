@@ -17,6 +17,7 @@
         "padx",
         "pady",
         "pgmpy",
+        "pyro",
         "rllib"
     ]
 }

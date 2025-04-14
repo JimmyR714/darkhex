@@ -252,7 +252,8 @@ class RLAgent(agents.agent.Agent):
 
 class DarkHexEnv(MultiAgentEnv):
     """
-    Environment to be passed into PPO algorithm
+    Environment for Dark Hex.
+    To be passed into PPO algorithm.
     """
     def __init__(self, config : dict[str, int]):
         super().__init__()
