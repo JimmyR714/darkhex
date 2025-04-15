@@ -8,7 +8,7 @@ from pprint import pprint
 from pathlib import Path
 import logging
 import json
-from collections.abc import Callable
+from functools import partial
 from pgmpy.models import FunctionalBayesianNetwork
 from pgmpy.factors.hybrid import FunctionalCPD
 import pyro.distributions as distribution
@@ -32,25 +32,34 @@ class AbstractAgent(Agent):
     Agent that utilizes an advanced Hex AI and belief states
     To play Dark Hex
     """
-    def __init__(self, num_cols: int, num_rows: int, settings: dict):
+    def __init__(self, num_cols: int, num_rows: int, settings: dict, hex_path: str):
         """
         Create an abstract agent
         """
         super().__init__(num_cols, num_rows, settings)
         # assign all settings here
-        self.cell_cpds : dict[tuple[int,int], FunctionalCPD] = None
+        self.cell_cpds : dict[tuple[int,int], FunctionalCPD] = {}
+        logging.info("Setting cell cpds")
         self.set_cell_cpds(
             cells=[(x,y) for x in range(self.num_cols) for y in range(self.num_rows)],
-            dist=distribution.Bernoulli(0)
+            dist=distribution.Bernoulli(0),
+            update=False
         )
-        self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = None
-        self.initialise_networks()
+        logging.info("Cell cpds set")
         self.weightings : dict[str, int] = settings["weightings"]
+        self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = {}
+        logging.info("Creating cell networks")
+        self.initialise_networks()
+        logging.info("Cell networks created.")
         self.opponents_unseen = 0
-        self.empty_cells = num_cols * num_rows
+        self.possible_empty_cells = num_cols * num_rows
+        logging.info("Getting Hex Agent")
+        self.hex_agent = HexAgent.from_file(hex_path)
+        logging.info("Got Hex Agent.")
+        self.int_board = [0]*num_cols*num_rows
 
 
-    def move(self):
+    def move(self) -> tuple[int, int]:
         """
         Make a move by the agent. 
         We search for the correct move in the most likely states
@@ -58,41 +67,57 @@ class AbstractAgent(Agent):
         """
         # first simulate the bayesian networks to find most likely places of their cells
         cell_count = {}
+        logging.info("Simulating cell networks")
         for row in range(self.num_rows):
             for col in range(self.num_cols):
                 # simulate network for 100 samples
                 sim_outputs = self.cell_networks[(col, row)].simulate(n_samples=100)
-                cell_count.update({(col,row): (sim_outputs[(col, row)] == 1).sum()})
+                cell_count.update({(col,row): sim_outputs[(col, row)].sum()})
+        logging.info("Cell networks simulated")
         # for now, we just place cells in the locations that were most common
         # TODO further rounds of simulation?
         guessed_cells = []
-        for _ in range(self.opponents_unseen):
+        still_unseen = self.opponents_unseen
+        while still_unseen > 0:
             max_cell = max(cell_count, key=cell_count.get)
-            guessed_cells.append(max_cell)
+            #only guess this cell if it is empty already
+            if self.int_board[max_cell[1] * self.num_cols + max_cell[0]] == 0:
+                guessed_cells.append(max_cell)
+                still_unseen -= 1
             del cell_count[max_cell]
         fake_board = self.fake_board(guessed_cells)
         # run Hex AI on the fake board
+        #TODO use board scores
+        logging.info("Running Hex Agent on the fake board:\n%s", fake_board)
+        (col, row) = self.hex_agent.best_move(fake_board)
+        return (col+1, row+1)
 
 
     def update_information(self, col: int, row: int, colour: str):
         """
         Update our belief system with the new information
         """
-        move_again = super().update_information(col, row, colour)
+        #adjust col and row
+        col-=1
+        row-=1
+        move_again = super().update_information(col,row,colour)
+        self.int_board[row*self.num_rows + col] = ((2*int(colour == "w"))-1)
         if colour != self.colour:
             # we know (col, row) contains their colour
             self.update_cell_cpd(col, row, distribution.Bernoulli(1))
+            self.fixed_network(col,row,1)
             # we found one of their cells
             self.opponents_unseen -= 1
         else:
             # we know (col, row) contains our colour
             self.update_cell_cpd(col, row, distribution.Bernoulli(0))
+            self.fixed_network(col,row,0)
             # the opponent will play somewhere that we haven't seen it
             self.opponents_unseen += 1
-            self.empty_cells -= 2
+        self.possible_empty_cells -= 1
         self.set_cell_cpds(
-            cells=self._empty_cells(),
-            dist=distribution.Bernoulli(self.opponents_unseen / self.empty_cells)
+            cells=self._possible_empty_cells(),
+            dist=distribution.Bernoulli(self.opponents_unseen / self.possible_empty_cells)
         )
         #TODO find a better distribution for the cell cpds
         return move_again
@@ -104,33 +129,71 @@ class AbstractAgent(Agent):
             dist=distribution.Bernoulli(0)
         )
         self.initialise_networks()
+        self.possible_empty_cells = self.num_cols * self.num_rows
+        self.int_board = [0]*self.num_cols*self.num_rows
+        self.opponents_unseen = 0
         return super().reset()
 
 
-    def set_cell_cpds(self, cells: list[tuple[int, int]], dist: distribution):
+    def set_cell_cpds(self, cells: list[tuple[int, int]], dist: distribution, update = True):
         """
         Set a list of cell cpds to be the same distribution
         """
         for cell in cells:
-            self.update_cell_cpd(cell[0], cell[1], dist)
+            if update:
+                self.update_cell_cpd(cell[0], cell[1], dist)
+            else:
+                self.cell_cpds.update({
+                    cell: FunctionalCPD(
+                        variable=cell,
+                        fn=lambda _: dist,
+                        parents=[]
+                    )
+                })
 
 
     def update_cell_cpd(self, col: int, row: int, dist: distribution):
         """
         Updates a single cell cpd to be the new distribution. 
-        Resets the relevant cell cpd in all models it is present.
+        Resets the relevant cell cpd in all models where it is present.
         """
-        new_cpd = FunctionalCPD((col,row), dist)
+        new_cpd = FunctionalCPD(
+            variable=(col,row),
+            fn = lambda _: dist,
+            parents=[]
+            )
         for cell in self._other_cells(col, row):
             self.cell_networks[cell].remove_cpds(self.cell_cpds[(col,row)])
             self.cell_networks[cell].add_cpds(new_cpd)
         self.cell_cpds[(col,row)] = new_cpd
 
 
+    def fixed_network(self, col: int, row: int, value: int):
+        """
+        Sets a cell network to be fixed and always return a certain value.
+        """
+        assert value <= 1
+        #a fixed function where the parent has no effect
+        def fixed_func(val, _):
+            return distribution.Bernoulli(val)
+        #create new model
+        parents = self._other_cells(col, row)
+        network_edges = [(cell, (col,row)) for cell in parents]
+        model = FunctionalBayesianNetwork(network_edges)
+        #add our fixed cpd
+        cpd = FunctionalCPD((col,row), partial(fixed_func, value), parents)
+        model.add_cpds(cpd)
+        #add cell cpds
+        cell_cpds = [self.cell_cpds[cell] for cell in self._other_cells(col, row)]
+        for cell_cpd in cell_cpds:
+            model.add_cpds(cell_cpd)
+        assert model.check_model()
+        self.cell_networks[(col,row)] = model
+
     def initialise_networks(self):
         """
         Create the Bayesian Networks that contain our beliefs.
-        Requires that the cell cpds have been set
+        Requires that the cell cpds have been set.
         """
         def cell_exists(cell) -> bool:
             """
@@ -139,10 +202,13 @@ class AbstractAgent(Agent):
             Parameters:
                 cell: tuple[int, int] - The cell that we are checking the existence of.
             """
-            return cell[0] >= 0 and cell[1] >= 0 and cell[0] < self.num_cols and cell[1] < self.num_rows
+            top_left = cell[0] >= 0 and cell[1] >= 0
+            bottom_right = cell[0] < self.num_cols and cell[1] < self.num_rows
+            return top_left and bottom_right
 
 
-        def add_cond(cond: str, cells: list[tuple[int, int]]) -> tuple[(Callable), set[int], int]:
+        def add_cond(cond: str,
+                     cells: list[tuple[int, int]]) -> tuple[dict[tuple[int,int], int], int]:
             """
             Adds a condition to the conditional probability distribution we are creating. 
             All elements returned should be combined with the currently maintained values.
@@ -152,22 +218,31 @@ class AbstractAgent(Agent):
                 cells: list[tuple[int, int]] - The cells that the condition includes
                 
             Returns:
-                fn: function[dict, int] - The function after adding the condition.
-                parents: set[int] - The parents used in this condition.
+                cond_parent_weightings: dict[tuple[int,int], int] - 
+                The parents used in this condition and their weightings.
                 cond_weightings : int - The sum of weightings from this condition.
             """
             cond_weighting = 0
-            parents = set()
-            fn = lambda parent: 0
+            cond_parent_weightings = {}
             # for each cell valid in this condition
             for cell in cells:
                 if cell_exists(cell):
                     # add the cell to the function
                     cond_weighting += self.weightings[cond]
-                    parents.add(cell)
-                    fn = lambda parent: fn(parent) + self.weightings[cond] * parent[cell]
-                    # note this may result in too much recursion?
-            return (fn, parents, cond_weighting)
+                    cond_parent_weightings.update({cell: self.weightings[cond]})
+            return (cond_parent_weightings, cond_weighting)
+
+
+        #define weight function for creating a cpd
+        def weight_dist(weightings: dict[tuple[int,int], int], total_weighting: int, parent):
+            #for now, we use a beta distribution with
+            # alpha = (weightings * present values)^2
+            # beta = total weighting
+            total = 1
+            for item in weightings.items():
+                total += parent[item[0]] * item[1]
+            return distribution.Beta(total**2, total_weighting)
+
 
         # note here top left playable cell is (0,0), (col, row)
 
@@ -191,67 +266,68 @@ class AbstractAgent(Agent):
 
         assert self.cell_cpds is not None
 
-        def init_fn(parent) -> int:
-            return 0
-
         # create a network centered around each node
         cell_networks = {}
         for row in range(self.num_rows):
             for col in range(self.num_cols):
                 # first create the cpd for this cell
                 total_weighting = 0
-                current_parents = set()
-                current_fn = init_fn
+                parent_weightings = {}
+                #start with all parent weightings being 0
+                for cell in self._other_cells(col, row):
+                    parent_weightings.update({cell:0})
                 # determine distribution based on some conditions
                 for cond in conditions:
                     if self.weightings[cond] > 0:
-                        # add weightings of all cells within 1 distance
-                        new_fn, new_parents, new_weighting = add_cond(
+                        # add weightings of all cells satisfying the condition
+                        new_parent_weightings, new_weighting = add_cond(
                             cond = cond,
                             cells = valid_cells[cond](col, row)
                         )
-                        def updated_fn(parent):
-                            current_fn(parent) + new_fn(parent)
-                        current_fn = updated_fn
+                        #update the parent weightings
+                        for item in new_parent_weightings.items():
+                            parent_weightings.update({
+                                item[0]: item[1] + new_parent_weightings[item[0]]
+                            })
                         total_weighting += new_weighting
-                        current_parents.union(new_parents)
+                #create cpd
                 cpd = FunctionalCPD(
                     variable=(col, row),
-                    #for now, we use a beta distribution with
-                    # alpha = (weightings * present values)^2
-                    # beta = total weighting
-                    fn=lambda parent: distribution.Beta(current_fn(parent)**2, total_weighting),
-                    parents=list(current_parents)
+                    fn=partial(weight_dist, parent_weightings, total_weighting),
+                    parents=self._other_cells(col,row)
                 )
                 #now we create the network for this cell
-                network_edges = self._other_cells(col, row)
+                network_edges = [(cell, (col,row)) for cell in self._other_cells(col, row)]
                 model = FunctionalBayesianNetwork(network_edges)
                 model.add_cpds(cpd)
-                cell_cpds = self._other_cells(col, row)
-                model.add_cpds(cell_cpds)
+                cell_cpds = [self.cell_cpds[cell] for cell in self._other_cells(col, row)]
+                for cell_cpd in cell_cpds:
+                    model.add_cpds(cell_cpd)
+                assert model.check_model()
                 cell_networks.update({(col,row): model})
+        self.cell_networks = cell_networks
 
 
-    def fake_board(self, cells: list[tuple[int, int]]) -> list[list[int]]:
+    def fake_board(self, cells: list[tuple[int, int]]) -> list[int]:
         """
-        Creates a fake board based on what we know and extra guessed cells
+        Creates a fake board based on what we know and extra guessed cells.
         """
-        new_board = [row.copy() for row in self.board]
+        new_board = self.int_board.copy()
         cell_value = -1 * ((2*int(self.colour == "w"))-1)
         for cell in cells:
-            new_board[cell[1]][cell[0]] = cell_value
+            new_board[cell[1]* self.num_cols + cell[0]] = cell_value
         return new_board
 
 
-    def _empty_cells(self) -> list[tuple[int, int]]:
+    def _possible_empty_cells(self) -> list[tuple[int, int]]:
         """
-        Return a list of the empty cells on the board
+        Return a list of the possible empty cells on the board
         """
         return [
             (x,y)
             for x in range(self.num_cols)
             for y in range(self.num_rows)
-            if self.board[y][x] == 0
+            if self.board[y][x] == "e"
         ]
 
 
@@ -260,10 +336,10 @@ class AbstractAgent(Agent):
         Return a list of all cells other than the input one
         """
         return [
-            self.cell_cpds[y][x]
+            (x,y)
             for x in range(self.num_cols)
             for y in range(self.num_rows)
-            if x!=col and y!=row
+            if x!=col or y!=row
         ]
 
 
@@ -391,7 +467,7 @@ class HexAgent():
             }, indent=4))
 
 
-    def best_move(self, board: list[list[int]]) -> tuple[int, int]:
+    def best_move(self, board: list[int]) -> tuple[int, int]:
         """
         Search for the best move in a given board.
         Returns:
@@ -409,14 +485,14 @@ class HexAgent():
         return best_move
 
 
-    def board_scores(self, board: list[list[int]]) -> list[list[float]]:
+    def board_scores(self, board: list[int]) -> list[list[float]]:
         """
         Find the expected values of playing in each cell within the board.
         Returns:
-            board: list[list[float]] - The scores of every cell on the board.
+            board_scores: list[list[float]] - The scores of every cell on the board.
         """
         #compute the action distribution
-        obs_batch = torch.from_numpy({self.colour: board}).unsqueeze(0).float()
+        obs_batch = torch.from_numpy(np.array(board, np.float32)).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
         action_dist = model_outputs["action_dist_inputs"][0].numpy()
         scores = []
@@ -541,8 +617,8 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 3
-    num_rows = 3
+    num_cols = 4
+    num_rows = 4
     colour = "w"
     logging.info("Creating Agent")
     agent = HexAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)

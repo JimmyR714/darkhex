@@ -193,9 +193,23 @@ class Controller:
                 )
                 new_agent.reset()
             case "Abstract":
+                #TODO allow proper settings input
+                agent_settings.update({"weightings":
+                    {
+                        "width_1": 5,
+                        "width_2_vc": 3,
+                        "width_2_semi_vc": 2
+                    }})
                 new_agent = agents.abstract_agent.AbstractAgent(
                     num_cols=num_cols,
                     num_rows=num_rows,
+                    hex_path=util.select_rl_agent(
+                        cols=num_cols,
+                        rows=num_rows,
+                        colour=agent_settings["colour"],
+                        current_path=os.path.dirname(__file__),
+                        agent_type="hex_agent"
+                    ),
                     settings=agent_settings
                 )
             case _:
