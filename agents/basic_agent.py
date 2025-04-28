@@ -78,7 +78,7 @@ class Belief():
             num_rows=num_rows
         )
         return cls(
-            board = [["e"] * num_cols] * num_rows,
+            board = [["e"]*num_cols for i in range(num_rows)],
             probability = 1.0,
             white_components = white_components,
             black_components = black_components

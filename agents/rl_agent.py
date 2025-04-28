@@ -117,13 +117,6 @@ class RLAgent(agents.agent.Agent):
                 ),
             )
         )
-        #tune the agent
-        #tune.Tuner(
-        #    "PPO",
-        #    run_config=tune.RunConfig(stop={"training_iteration": 1}),
-        #    param_space=config,
-        #).fit()
-        #finish creating agent object
         return cls(
             num_cols=num_cols,
             num_rows=num_rows,
@@ -230,9 +223,6 @@ class RLAgent(agents.agent.Agent):
         # Train it for some number of iterations
         for _ in range(iterations):
             pprint(self.algo.train())
-        #save to our rl module
-        #TODO cannot run immediately after training
-        #self.rl_module = self.algo.get_module(self.colour)
 
 
     def save(self, path: str):
@@ -383,12 +373,12 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 5
-    num_rows = 5
+    num_cols = 7
+    num_rows = 7
     colour = "b"
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
-    agent.train(iterations=50)
+    agent.train(iterations=100)
     logging.info("Agent trained")
     logging.debug(agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(

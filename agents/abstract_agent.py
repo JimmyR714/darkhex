@@ -46,6 +46,7 @@ class AbstractAgent(Agent):
             update=False
         )
         logging.info("Cell cpds set")
+        self.num_boards = settings["num_boards"]
         self.weightings : dict[str, int] = settings["weightings"]
         self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = {}
         logging.info("Creating cell networks")
@@ -74,9 +75,9 @@ class AbstractAgent(Agent):
                 sim_outputs = self.cell_networks[(col, row)].simulate(n_samples=100)
                 cell_count.update({(col,row): sim_outputs[(col, row)].sum()})
         logging.info("Cell networks simulated")
-        # for now, we just place cells in the locations that were most common
-        # TODO further rounds of simulation?
+        #now we create a certain number of fake boards
         guessed_cells = []
+        #fake_boards = []
         still_unseen = self.opponents_unseen
         while still_unseen > 0:
             max_cell = max(cell_count, key=cell_count.get)
@@ -87,10 +88,21 @@ class AbstractAgent(Agent):
             del cell_count[max_cell]
         fake_board = self.fake_board(guessed_cells)
         # run Hex AI on the fake board
-        #TODO use board scores
         logging.info("Running Hex Agent on the fake board:\n%s", fake_board)
-        (col, row) = self.hex_agent.best_move(fake_board)
-        return (col+1, row+1)
+        scores = self.hex_agent.board_scores(fake_board)
+        #now get the best move
+        best_score = -1000 * ((2*int(self.colour == "w"))-1)
+        best_move = (0,0)
+        for pos, val in enumerate(scores):
+            col = pos % self.num_cols
+            row = pos // self.num_cols
+            if self.board[row][col] == "e":
+                good_white = self.colour == "w" and val > best_score
+                good_black = self.colour == "b" and val < best_score
+                if good_white or good_black:
+                    best_score = val
+                    best_move = (col+1,row+1)
+        return best_move
 
 
     def update_information(self, col: int, row: int, colour: str):
@@ -98,9 +110,9 @@ class AbstractAgent(Agent):
         Update our belief system with the new information
         """
         #adjust col and row
+        move_again = super().update_information(col,row,colour)
         col-=1
         row-=1
-        move_again = super().update_information(col,row,colour)
         self.int_board[row*self.num_rows + col] = ((2*int(colour == "w"))-1)
         if colour != self.colour:
             # we know (col, row) contains their colour
@@ -467,25 +479,7 @@ class HexAgent():
             }, indent=4))
 
 
-    def best_move(self, board: list[int]) -> tuple[int, int]:
-        """
-        Search for the best move in a given board.
-        Returns:
-            move: tuple[int, int] - The chosen best move. The top left cell is (0,0), (col, row).
-        """
-        scores = self.board_scores(board)
-        cell_value = (2*int(self.colour == "w"))-1
-        best_score = -1000 * cell_value
-        best_move = (0,0)
-        for row, arr in enumerate(scores):
-            for col, val in enumerate(arr):
-                if val * cell_value > best_score * cell_value:
-                    best_score = val
-                    best_move = (col,row)
-        return best_move
-
-
-    def board_scores(self, board: list[int]) -> list[list[float]]:
+    def board_scores(self, board: list[int]) -> list[float]:
         """
         Find the expected values of playing in each cell within the board.
         Returns:
@@ -495,14 +489,7 @@ class HexAgent():
         obs_batch = torch.from_numpy(np.array(board, np.float32)).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
         action_dist = model_outputs["action_dist_inputs"][0].numpy()
-        scores = []
-        #turn into 2d array
-        for row in range(self.num_rows):
-            row_scores = []
-            for col in range(self.num_cols):
-                row_scores.append(action_dist[row*self.num_cols + col])
-            scores.append(row_scores)
-        return scores
+        return action_dist
 
 
 class HexEnv(MultiAgentEnv):
@@ -584,21 +571,23 @@ class HexEnv(MultiAgentEnv):
                 terminated["__all__"] = True
             case "full_white":
                 # in contrast to dark hex, we never want to play on a full cell
-                rewards[initial_turn] -= 100.0
-                rewards[util.swap_colour(initial_turn)] += 100.0
+                #rewards[initial_turn] -= 100.0
+                #rewards[util.swap_colour(initial_turn)] += 100.0
+                self.board[action] = 1
             case "full_black":
-                rewards[initial_turn] -= 100.0
-                rewards[util.swap_colour(initial_turn)] += 100.0
+                #rewards[initial_turn] -= 100.0
+                #rewards[util.swap_colour(initial_turn)] += 100.0
+                self.board[action] = -1
             case "placed":
                 # hugely penalize placing a piece in an occupied cell,
                 # hence the algorithm shouldn't ever choose to do it
                 cell_value = (2*int(initial_turn == "w"))-1
-                if self.board[action] == cell_value:
+                #if self.board[action] == cell_value:
                     #we have played here before
-                    rewards[initial_turn] -= 100.0
-                    rewards[util.swap_colour(initial_turn)] += 100.0
-                else:
-                    self.board[action] = cell_value
+                    #rewards[initial_turn] -= 100.0
+                    #rewards[util.swap_colour(initial_turn)] += 100.0
+                #else:
+                self.board[action] = cell_value
         turn = self.abstract_game.turn
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
         return (
@@ -617,8 +606,8 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 4
-    num_rows = 4
+    num_cols = 3
+    num_rows = 3
     colour = "w"
     logging.info("Creating Agent")
     agent = HexAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)

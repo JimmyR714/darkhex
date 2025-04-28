@@ -21,7 +21,7 @@ class Agent():
         self.colour = settings["colour"]
         self.num_rows = num_rows
         self.num_cols = num_cols
-        self.board = [["e"] * num_cols] * num_rows
+        self.board = [["e"]*num_cols for i in range(num_rows)]
 
 
     def move(self) -> tuple[int, int]:
@@ -67,4 +67,4 @@ class Agent():
         """
         Reset the agent so it can play another game off the same settings
         """
-        self.board = [["e"] * self.num_cols] * self.num_rows
+        self.board = [["e"]*self.num_cols for i in range(self.num_rows)]

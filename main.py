@@ -194,12 +194,17 @@ class Controller:
                 new_agent.reset()
             case "Abstract":
                 #TODO allow proper settings input
-                agent_settings.update({"weightings":
+                agent_settings.update(
                     {
-                        "width_1": 5,
-                        "width_2_vc": 3,
-                        "width_2_semi_vc": 2
-                    }})
+                        "weightings":
+                            {
+                                "width_1": 5,
+                                "width_2_vc": 3,
+                                "width_2_semi_vc": 2
+                            },
+                        "num_boards": 10
+                    }
+                )
                 new_agent = agents.abstract_agent.AbstractAgent(
                     num_cols=num_cols,
                     num_rows=num_rows,
