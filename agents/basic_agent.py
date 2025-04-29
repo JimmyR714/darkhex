@@ -45,7 +45,7 @@ class BasicAgent(agents.agent.Agent):
         return another_move
 
 
-    def reset(self):
+    def reset(self, board: list[list[str]]):
         self.belief_state = BeliefState.fresh(
             num_cols=self.num_cols,
             num_rows=self.num_rows,

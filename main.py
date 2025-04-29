@@ -9,13 +9,13 @@ To add an agent to the system:
 
 import logging
 import os
-import agents.abstract_agent
 import game.util as util
 import game.display as display
 import game.darkhex as darkhex
 import agents.agent
 import agents.basic_agent
 import agents.rl_agent
+import agents.abstract_agent
 
 class Controller:
     """
@@ -30,6 +30,7 @@ class Controller:
         self.game: darkhex.AbstractDarkHex = None
         self.agent: agents.agent.Agent = None
         self.agent2: agents.agent.Agent = None
+        self.learning = False
 
 
     def make_window(self) -> None:
@@ -49,7 +50,8 @@ class Controller:
 
     def new_pva_game(self, agent_settings: dict):
         """
-        Create a player vs agent game
+        Create a player vs agent game.
+        
         Prerequisite: a new game must have been created
         """
         self.create_agent(agent_settings=agent_settings)
@@ -108,11 +110,11 @@ class Controller:
             else:
                 agent_2_wins += 1
                 logging.debug("Agent 2 has won")
+            #reset agents, send referee's board in case they can learn
+            self.agent.reset(self.game.board)
+            self.agent2.reset(self.game.board)
             #reset game
             self.game.reset_board()
-            #reset agents
-            self.agent.reset()
-            self.agent2.reset()
         logging.debug("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
 
 
@@ -191,7 +193,7 @@ class Controller:
                         current_path=os.path.dirname(__file__)
                     )
                 )
-                new_agent.reset()
+                new_agent.reset(self.game.board)
             case "Abstract":
                 #TODO allow proper settings input
                 agent_settings.update(
@@ -202,7 +204,8 @@ class Controller:
                                 "width_2_vc": 3,
                                 "width_2_semi_vc": 2
                             },
-                        "num_boards": 10
+                        "num_boards": 10,
+                        "learning": False
                     }
                 )
                 new_agent = agents.abstract_agent.AbstractAgent(

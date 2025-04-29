@@ -25,7 +25,7 @@ import gymnasium as gym
 import numpy as np
 from agents.agent import Agent
 import game.util as util
-import game.darkhex as dh
+import game.hex as hex
 
 class AbstractAgent(Agent):
     """
@@ -48,6 +48,7 @@ class AbstractAgent(Agent):
         logging.info("Cell cpds set")
         self.num_boards = settings["num_boards"]
         self.weightings : dict[str, int] = settings["weightings"]
+        self.learning = settings["learning"]
         self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = {}
         logging.info("Creating cell networks")
         self.initialise_networks()
@@ -75,21 +76,21 @@ class AbstractAgent(Agent):
                 sim_outputs = self.cell_networks[(col, row)].simulate(n_samples=100)
                 cell_count.update({(col,row): sim_outputs[(col, row)].sum()})
         logging.info("Cell networks simulated")
-        #now we create a certain number of fake boards
-        guessed_cells = []
-        #fake_boards = []
-        still_unseen = self.opponents_unseen
-        while still_unseen > 0:
-            max_cell = max(cell_count, key=cell_count.get)
-            #only guess this cell if it is empty already
-            if self.int_board[max_cell[1] * self.num_cols + max_cell[0]] == 0:
-                guessed_cells.append(max_cell)
-                still_unseen -= 1
-            del cell_count[max_cell]
-        fake_board = self.fake_board(guessed_cells)
-        # run Hex AI on the fake board
-        logging.info("Running Hex Agent on the fake board:\n%s", fake_board)
-        scores = self.hex_agent.board_scores(fake_board)
+        #sort the cell counts
+        decr_counts = sorted(
+            [
+            (k,v) for k,v in cell_count.items() if self.int_board[k[1] * self.num_cols + k[0]] == 0
+            ],
+            key=lambda x: x[1],
+            reverse=True
+        )
+        fake_boards = self.fake_boards(decr_counts)
+        # run Hex AI on the fake boards
+        scores = [0] * self.num_cols * self.num_rows
+        for fb in fake_boards:
+            logging.info("Running Hex Agent on the fake board:\n%s", fb)
+            #update scores
+            scores = [sum(x) for x in zip(self.hex_agent.board_scores(fb), scores)]
         #now get the best move
         best_score = -1000 * ((2*int(self.colour == "w"))-1)
         best_move = (0,0)
@@ -135,16 +136,17 @@ class AbstractAgent(Agent):
         return move_again
 
 
-    def reset(self):
+    def reset(self, board: list[list[str]]):
         self.set_cell_cpds(
             cells=[(x,y) for x in range(self.num_cols) for y in range(self.num_rows)],
-            dist=distribution.Bernoulli(0)
+            dist=distribution.Bernoulli(0),
+            update=True
         )
         self.initialise_networks()
         self.possible_empty_cells = self.num_cols * self.num_rows
         self.int_board = [0]*self.num_cols*self.num_rows
         self.opponents_unseen = 0
-        return super().reset()
+        self.board = [["e"]*self.num_cols for i in range(self.num_rows)]
 
 
     def set_cell_cpds(self, cells: list[tuple[int, int]], dist: distribution, update = True):
@@ -201,6 +203,7 @@ class AbstractAgent(Agent):
             model.add_cpds(cell_cpd)
         assert model.check_model()
         self.cell_networks[(col,row)] = model
+
 
     def initialise_networks(self):
         """
@@ -318,6 +321,16 @@ class AbstractAgent(Agent):
                 assert model.check_model()
                 cell_networks.update({(col,row): model})
         self.cell_networks = cell_networks
+
+
+    def fake_boards(self, sorted_counts: list[tuple[tuple[int,int], float]]) -> list[list[int]]:
+        """
+        Creates multiple fake boards.
+        """
+        #TODO complete this function
+        return [
+            self.fake_board([k for (k,v) in sorted_counts[:self.opponents_unseen]])
+        ]
 
 
     def fake_board(self, cells: list[tuple[int, int]]) -> list[int]:
@@ -485,6 +498,12 @@ class HexAgent():
         Returns:
             board_scores: list[list[float]] - The scores of every cell on the board.
         """
+        #set the board in the environment
+        logging.info("Abstract game has board: %s and turn: %s",
+                     self.env.abstract_game.board, self.env.abstract_game.turn)
+        self.env.set_board(board, self.colour)
+        logging.info("Abstract game has board: %s and turn: %s",
+                     self.env.abstract_game.board, self.env.abstract_game.turn)
         #compute the action distribution
         obs_batch = torch.from_numpy(np.array(board, np.float32)).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
@@ -520,8 +539,8 @@ class HexEnv(MultiAgentEnv):
 
         self.num_cols = num_cols
         self.num_rows = num_rows
-        self.abstract_game = None
-        self.board = None
+        self.abstract_game = hex.AbstractHex(self.num_cols, self.num_rows)
+        self.board = [0] * self.num_cols * self.num_rows
 
 
     def reset(self, *, seed=None, options=None):
@@ -529,7 +548,7 @@ class HexEnv(MultiAgentEnv):
         Initialise the abstract game and set the starting players
         """
         #create abstract game of correct size
-        self.abstract_game = dh.AbstractDarkHex(self.num_cols, self.num_rows, turn_check=False)
+        self.abstract_game = hex.AbstractHex(self.num_cols, self.num_rows)
         self.board = [0] * self.num_cols * self.num_rows
         # return observation dict and infos dict.
         return {"w": np.array(self.board, np.float32)}, {}
@@ -539,14 +558,9 @@ class HexEnv(MultiAgentEnv):
         """
         Do one step in this episode
         """
-        if "w" in action_dict:
-            action : int = action_dict["w"]
-            initial_turn = "w"
-        else:
-            action : int = action_dict["b"]
-            initial_turn = "b"
         #action is (col-1 * num_rows) + row-1
-        #action : int = action_dict[self.abstract_game.turn]
+        initial_turn = self.abstract_game.turn
+        action : int = action_dict[initial_turn]
         col = (action // self.num_rows) + 1
         row = (action % self.num_rows) + 1
         # Create a rewards-dict (containing the rewards of the agent that just acted).
@@ -571,34 +585,36 @@ class HexEnv(MultiAgentEnv):
                 terminated["__all__"] = True
             case "full_white":
                 # in contrast to dark hex, we never want to play on a full cell
-                #rewards[initial_turn] -= 100.0
-                #rewards[util.swap_colour(initial_turn)] += 100.0
-                self.board[action] = 1
+                rewards[initial_turn] -= 10.0
             case "full_black":
-                #rewards[initial_turn] -= 100.0
-                #rewards[util.swap_colour(initial_turn)] += 100.0
-                self.board[action] = -1
+                rewards[initial_turn] -= 10.0
             case "placed":
                 # hugely penalize placing a piece in an occupied cell,
                 # hence the algorithm shouldn't ever choose to do it
                 cell_value = (2*int(initial_turn == "w"))-1
-                #if self.board[action] == cell_value:
+                if self.board[action] == cell_value:
                     #we have played here before
-                    #rewards[initial_turn] -= 100.0
-                    #rewards[util.swap_colour(initial_turn)] += 100.0
-                #else:
-                self.board[action] = cell_value
-        turn = self.abstract_game.turn
+                    rewards[initial_turn] -= 10.0
+                else:
+                    self.board[action] = cell_value
+        new_turn = self.abstract_game.turn
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
         return (
             {
-                turn: np.array(self.board, np.float32),
+                new_turn: np.array(self.board, np.float32),
             },
             rewards,
             terminated,
             {},
             {}
         )
+
+
+    def set_board(self, board: list[int], agent_colour: str):
+        """
+        Set the abstract game to be a certain fake board.
+        """
+        self.abstract_game.set_board(board, agent_colour)
 
 
 #run to train the agent
@@ -612,7 +628,7 @@ def main():
     logging.info("Creating Agent")
     agent = HexAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
-    agent.train(iterations=50)
+    agent.train(iterations=20)
     logging.info("Agent trained")
     agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\hex_agent_" + str(

@@ -63,7 +63,7 @@ class Agent():
         return self.colour != colour
 
 
-    def reset(self):
+    def reset(self, board: list[list[str]]):
         """
         Reset the agent so it can play another game off the same settings
         """

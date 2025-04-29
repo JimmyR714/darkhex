@@ -126,7 +126,7 @@ class RLAgent(agents.agent.Agent):
         )
 
 
-    def reset(self):
+    def reset(self, board: list[list[str]]):
         """
         Reset the environment that the agent uses.
         Must be used at the start of a game.
