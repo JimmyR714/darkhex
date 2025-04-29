@@ -47,8 +47,8 @@ class AbstractAgent(Agent):
             update=False
         )
         logging.info("Cell cpds set")
-        self.num_boards = settings["num_boards"]
-        self.weightings : dict[str, int] = settings["weightings"]
+        self.num_boards = settings["fake_boards"]
+        self.weightings : dict[str, int] = settings
         self.learning = settings["learning"]
         self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = {}
         logging.info("Creating cell networks")
@@ -572,7 +572,7 @@ class HexEnv(MultiAgentEnv):
         col = (action // self.num_rows) + 1
         row = (action % self.num_rows) + 1
         # Create a rewards-dict (containing the rewards of the agent that just acted).
-        rewards = {"w": 0.0, "b": 0.0}
+        rewards = {initial_turn: 0.0}
         # Create a terminated-dict with the special `__all__` agent ID, indicating that
         # if True, the episode ends for all agents.
         terminated = {"__all__": False}
@@ -580,31 +580,21 @@ class HexEnv(MultiAgentEnv):
         #we still use the dark hex abstract game because it works in the same way
         move_result = self.abstract_game.move(col=col, row=row, colour=initial_turn)
         #get rewards, termination, and board updates of the move
-        match move_result:
-            case "black_win":
-                self.board[action] = -1
-                rewards["b"] += 10.0
-                rewards["w"] -= 10.0
+        if move_result in ["full_white", "full_black"] or (
+            move_result == "placed" and self.board[action] != 0):
+            #penalize trying to place a piece in an occupied field
+            rewards[initial_turn] -= 5.0
+        else:
+            #place the piece
+            self.board[action] = 1 if initial_turn == "w" else -1
+            if move_result == "white_win":
+                rewards["w"] = 5.0
+                rewards["b"] = -5.0
                 terminated["__all__"] = True
-            case "white_win":
-                self.board[action] = 1
-                rewards["w"] += 10.0
-                rewards["b"] -= 10.0
+            elif move_result == "black_win":
+                rewards["w"] = -5.0
+                rewards["b"] = 5.0
                 terminated["__all__"] = True
-            case "full_white":
-                # in contrast to dark hex, we never want to play on a full cell
-                rewards[initial_turn] -= 10.0
-            case "full_black":
-                rewards[initial_turn] -= 10.0
-            case "placed":
-                # hugely penalize placing a piece in an occupied cell,
-                # hence the algorithm shouldn't ever choose to do it
-                cell_value = (2*int(initial_turn == "w"))-1
-                if self.board[action] == cell_value:
-                    #we have played here before
-                    rewards[initial_turn] -= 10.0
-                else:
-                    self.board[action] = cell_value
         new_turn = self.abstract_game.turn
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
         return (
@@ -636,7 +626,7 @@ def main():
     logging.info("Creating Agent")
     agent = HexAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
-    agent.train(iterations=20)
+    agent.train(iterations=100)
     logging.info("Agent trained")
     agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\hex_agent_" + str(

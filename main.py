@@ -195,19 +195,17 @@ class Controller:
                 )
                 new_agent.reset(self.game.board)
             case "Abstract":
-                #TODO allow proper settings input
-                agent_settings.update(
-                    {
-                        "weightings":
-                            {
-                                "width_1": 5,
-                                "width_2_vc": 3,
-                                "width_2_semi_vc": 2
-                            },
-                        "num_boards": 10,
-                        "learning": False
-                    }
-                )
+                #change settings from intvars
+                if not isinstance(agent_settings["width_1"], int):
+                    agent_settings.update(
+                        {
+                            "width_1": agent_settings["width_1"].get(),
+                            "width_2_vc": agent_settings["width_2_vc"].get(),
+                            "width_2_semi_vc": agent_settings["width_2_semi_vc"].get(),
+                            "learning": agent_settings["learning"].get(),
+                            "fake_boards": agent_settings["fake_boards"].get()
+                        }
+                    )
                 new_agent = agents.abstract_agent.AbstractAgent(
                     num_cols=num_cols,
                     num_rows=num_rows,
