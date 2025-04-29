@@ -8,6 +8,7 @@ from pprint import pprint
 from pathlib import Path
 import logging
 import json
+import itertools
 from functools import partial
 from pgmpy.models import FunctionalBayesianNetwork
 from pgmpy.factors.hybrid import FunctionalCPD
@@ -327,10 +328,17 @@ class AbstractAgent(Agent):
         """
         Creates multiple fake boards.
         """
-        #TODO complete this function
-        return [
-            self.fake_board([k for (k,v) in sorted_counts[:self.opponents_unseen]])
-        ]
+        extra_cells = len(sorted_counts) - self.opponents_unseen
+        only_cells = [k for (k,v) in sorted_counts]
+        if extra_cells == 0:
+            fake_boards = [self.fake_board(only_cells[:self.opponents_unseen])]
+        else:
+            #learn a fixed number of most likely combinations
+            fake_boards = []
+            all_combs = list(itertools.combinations(only_cells, self.opponents_unseen))
+            for comb in all_combs[:min(len(all_combs), self.num_boards)]:
+                fake_boards.append(self.fake_board(comb))
+        return fake_boards
 
 
     def fake_board(self, cells: list[tuple[int, int]]) -> list[int]:
