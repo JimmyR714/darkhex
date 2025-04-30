@@ -111,8 +111,17 @@ class AbstractAgent(Agent):
         """
         Update our belief system with the new information
         """
-        #adjust col and row
+        if self.board[row-1][col-1] == "e":
+            #if this piece is new to us
+            self.possible_empty_cells -= 1
+            if colour == self.colour:
+                #if it is our piece being placed, the opponent will move somewhere
+                self.opponents_unseen += 1
+            else:
+                #we have found one of the opponent's pieces
+                self.opponents_unseen -= 1
         move_again = super().update_information(col,row,colour)
+        #adjust col and row
         col-=1
         row-=1
         self.int_board[row*self.num_rows + col] = ((2*int(colour == "w"))-1)
@@ -120,15 +129,10 @@ class AbstractAgent(Agent):
             # we know (col, row) contains their colour
             self.update_cell_cpd(col, row, distribution.Bernoulli(1))
             self.fixed_network(col,row,1)
-            # we found one of their cells
-            self.opponents_unseen -= 1
         else:
             # we know (col, row) contains our colour
             self.update_cell_cpd(col, row, distribution.Bernoulli(0))
             self.fixed_network(col,row,0)
-            # the opponent will play somewhere that we haven't seen it
-            self.opponents_unseen += 1
-        self.possible_empty_cells -= 1
         self.set_cell_cpds(
             cells=self._possible_empty_cells(),
             dist=distribution.Bernoulli(self.opponents_unseen / self.possible_empty_cells)
@@ -445,18 +449,17 @@ class HexAgent():
                 )
             )
             .training(
-                gamma=0.9,
-                lr=0.001,
-                kl_coeff=0.3,
-                vf_loss_coeff=0.005,
+                gamma=0.8,
+                lr=0.01,
+                kl_coeff=0.2,
+                vf_loss_coeff=0.01,
                 use_kl_loss=True,
-                clip_param=0.2
+                clip_param=0.1
             )
             .rl_module(
                 model_config=DefaultModelConfig(
                     use_lstm=False,
                     fcnet_hiddens=[256, 256],
-                    lstm_cell_size=256,
                     max_seq_len=15,
                     vf_share_layers=True,
                 ),
