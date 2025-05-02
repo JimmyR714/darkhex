@@ -6,6 +6,7 @@ The imperfect aspect is included using a belief system that the agent never sees
 import os
 from pprint import pprint
 from pathlib import Path
+import math
 import logging
 import json
 import itertools
@@ -22,11 +23,16 @@ from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModule
 import torch
+import pandas as pd
 import gymnasium as gym
 import numpy as np
 from agents.agent import Agent
 import game.util as util
 import game.hex as hex
+
+
+LEARNING_SIZE = 1000
+
 
 class AbstractAgent(Agent):
     """
@@ -39,6 +45,7 @@ class AbstractAgent(Agent):
         """
         super().__init__(num_cols, num_rows, settings)
         # assign all settings here
+        # cell cpds are used to give values to parents in a network
         self.cell_cpds : dict[tuple[int,int], FunctionalCPD] = {}
         logging.info("Setting cell cpds")
         self.set_cell_cpds(
@@ -50,6 +57,7 @@ class AbstractAgent(Agent):
         self.num_boards = settings["fake_boards"]
         self.weightings : dict[str, int] = settings
         self.learning = settings["learning"]
+        # each item in here is a model with the key being the child cell
         self.cell_networks : dict[tuple[int,int], FunctionalBayesianNetwork] = {}
         logging.info("Creating cell networks")
         self.initialise_networks()
@@ -147,7 +155,8 @@ class AbstractAgent(Agent):
             dist=distribution.Bernoulli(0),
             update=True
         )
-        self.initialise_networks()
+        if self.learning:
+            self.learn(board)
         self.possible_empty_cells = self.num_cols * self.num_rows
         self.int_board = [0]*self.num_cols*self.num_rows
         self.opponents_unseen = 0
@@ -356,6 +365,34 @@ class AbstractAgent(Agent):
         return new_board
 
 
+    def learn(self, board: list[list[str]]):
+        """
+        Use the final board state to update our cpds
+        """
+        # get opponent's pieces into a dictionary
+        final_states = {}
+        total_opp_pieces = 0
+        for y, row in enumerate(board):
+            for x, cell in enumerate(row):
+                opp_piece = 1 if cell == util.swap_colour(self.colour) else 0
+                final_states.update({(x,y): opp_piece})
+                total_opp_pieces += opp_piece
+        # our cell data is {(col,row) : table of data points,
+        # each point corresponds to points in other cell tables}
+        logging.debug("Creating cell data")
+        cell_data = pd.DataFrame()
+        #learn the possible positions for every combination at each stage of the game
+        for i in range(total_opp_pieces):
+            #TODO allow adjustable learning size
+            if math.comb(total_opp_pieces, i) < LEARNING_SIZE:
+                # we only learn combinations if the size is small
+                cell_data.add(list(itertools.combinations(final_states, i)))
+        # learn the data for each model
+        logging.info("Learning cell data for each network")
+        for network in self.cell_networks.values():
+            network.fit(cell_data)
+
+
     def _possible_empty_cells(self) -> list[tuple[int, int]]:
         """
         Return a list of the possible empty cells on the board
@@ -394,7 +431,7 @@ class HexAgent():
         self.num_cols = num_cols
         self.num_rows = num_rows
         self.colour = agent_colour
-        self.env = HexEnv(config={
+        self.env = HexEnv1(config={
                     "num_cols": num_cols,
                     "num_rows": num_rows
                 })
@@ -510,11 +547,7 @@ class HexAgent():
             board_scores: list[list[float]] - The scores of every cell on the board.
         """
         #set the board in the environment
-        logging.info("Abstract game has board: %s and turn: %s",
-                     self.env.abstract_game.board, self.env.abstract_game.turn)
         self.env.set_board(board, self.colour)
-        logging.info("Abstract game has board: %s and turn: %s",
-                     self.env.abstract_game.board, self.env.abstract_game.turn)
         #compute the action distribution
         obs_batch = torch.from_numpy(np.array(board, np.float32)).unsqueeze(0).float()
         model_outputs = self.rl_module.forward_inference({"obs": obs_batch})
@@ -572,8 +605,8 @@ class HexEnv(MultiAgentEnv):
         #action is (col-1 * num_rows) + row-1
         initial_turn = self.abstract_game.turn
         action : int = action_dict[initial_turn]
-        col = (action // self.num_rows) + 1
-        row = (action % self.num_rows) + 1
+        col = (action // self.num_cols) + 1
+        row = (action % self.num_cols) + 1
         # Create a rewards-dict (containing the rewards of the agent that just acted).
         rewards = {initial_turn: 0.0}
         # Create a terminated-dict with the special `__all__` agent ID, indicating that
@@ -583,20 +616,18 @@ class HexEnv(MultiAgentEnv):
         #we still use the dark hex abstract game because it works in the same way
         move_result = self.abstract_game.move(col=col, row=row, colour=initial_turn)
         #get rewards, termination, and board updates of the move
-        if move_result in ["full_white", "full_black"] or (
-            move_result == "placed" and self.board[action] != 0):
-            #penalize trying to place a piece in an occupied field
-            rewards[initial_turn] -= 5.0
-        else:
+        #if move_result in ["full_white", "full_black"] or (
+        #    move_result == "placed" and self.board[action] != 0):
+        #    #penalize trying to place a piece in an occupied field
+        #    rewards[initial_turn] -= 5.0
+        #    rewards[util.swap_colour(initial_turn)] = 5.0
+        if move_result in ["white_win", "black_win"] or (
+            move_result=="placed" and self.board[action] != (2*int(initial_turn == "w"))-1):
             #place the piece
             self.board[action] = 1 if initial_turn == "w" else -1
-            if move_result == "white_win":
-                rewards["w"] = 5.0
-                rewards["b"] = -5.0
-                terminated["__all__"] = True
-            elif move_result == "black_win":
-                rewards["w"] = -5.0
-                rewards["b"] = 5.0
+            if move_result == util.colour_map[initial_turn]+"_win":
+                rewards[initial_turn] = 10.0
+                rewards[util.swap_colour(initial_turn)] = -10.0
                 terminated["__all__"] = True
         new_turn = self.abstract_game.turn
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
@@ -616,6 +647,151 @@ class HexEnv(MultiAgentEnv):
         Set the abstract game to be a certain fake board.
         """
         self.abstract_game.set_board(board, agent_colour)
+
+
+#temp class for hex
+class HexEnv1(MultiAgentEnv):
+    """
+    Environment for Dark Hex.
+    To be passed into PPO algorithm.
+    """
+    def __init__(self, config : dict[str, int]):
+        super().__init__()
+        num_cols : int = config["num_cols"]
+        num_rows : int = config["num_rows"]
+        #define the agents in the game
+        self.agents = self.possible_agents = ["w", "b"]
+
+        #each agent observes a space of size num_cols x num_rows
+        #each cell can range from -1.0 to 1.0, with -1.0 being black and 1.0 being white
+        self.observation_spaces = {
+            "w": gym.spaces.Box(-1.0, 1.0, (num_cols* num_rows,), np.float32),
+            "b": gym.spaces.Box(-1.0, 1.0, (num_cols* num_rows,), np.float32)
+        }
+
+        #each agent can place in any of the cells
+        self.action_spaces = {
+            "w": gym.spaces.Discrete(num_cols * num_rows),
+            "b": gym.spaces.Discrete(num_cols * num_rows)
+        }
+
+        self.num_cols = num_cols
+        self.num_rows = num_rows
+        self.abstract_game = None
+        self.white_board = None
+        self.black_board = None
+
+
+    def reset(self, *, seed=None, options=None):
+        """
+        Initialise the abstract game and set the starting players
+        """
+        #create abstract game of correct size
+        self.abstract_game = hex.AbstractHex(self.num_cols, self.num_rows)
+        self.white_board = [0] * self.num_cols * self.num_rows
+        self.black_board = [0] * self.num_cols * self.num_rows
+        # return observation dict and infos dict.
+        return {"w": np.array(self.white_board, np.float32)}, {}
+
+
+    def step(self, action_dict):
+        """
+        Do one step in this episode
+        """
+        if "w" in action_dict:
+            action : int = action_dict["w"]
+            initial_turn = "w"
+        else:
+            action : int = action_dict["b"]
+            initial_turn = "b"
+        #action is (col-1 * num_rows) + row-1
+        #action : int = action_dict[self.abstract_game.turn]
+        col = (action // self.num_cols) + 1
+        row = (action % self.num_cols) + 1
+        # Create a rewards-dict (containing the rewards of the agent that just acted).
+        rewards = {"w": 0.0, "b": 0.0}
+        # Create a terminated-dict with the special `__all__` agent ID, indicating that
+        # if True, the episode ends for all agents.
+        terminated = {"__all__": False}
+        #do the move
+        move_result = self.abstract_game.move(col=col, row=row, colour=initial_turn)
+        #get rewards, termination, and board updates of the move
+        logging.debug("Move result in step is: %s", move_result)
+        match move_result:
+            case "black_win":
+                self.black_board[action] = -1
+                self.white_board[action] = -1
+                rewards["b"] += 10.0
+                rewards["w"] -= 10.0
+                terminated["__all__"] = True
+            case "white_win":
+                self.white_board[action] = 1
+                self.black_board[action] = 1
+                rewards["w"] += 10.0
+                rewards["b"] -= 10.0
+                terminated["__all__"] = True
+            case "full_white":
+                self.black_board[action] = 1
+                self.white_board[action] = 1
+            case "full_black":
+                self.white_board[action] = -1
+                self.black_board[action] = -1
+            case "placed":
+                # hugely penalize placing a piece in an occupied cell,
+                # hence the algorithm shouldn't ever choose to do it
+                cell_value = (2*int(initial_turn == "w"))-1
+                if self.get_board(initial_turn)[action] == cell_value:
+                    #we have played here before
+                    rewards[initial_turn] -= 100.0
+                    rewards[util.swap_colour(initial_turn)] += 100.0
+                else:
+                    self.white_board[action] = cell_value
+                    self.black_board[action] = cell_value
+
+        turn = self.abstract_game.turn
+        # return observation dict, rewards dict, termination/truncation dicts, and infos dict
+        return (
+            self.get_obs(turn),
+            rewards,
+            terminated,
+            {},
+            {}
+        )
+
+
+    def update_board(self, colour: str, position: int, value: int):
+        """
+        WARNING: Be careful with use, most updates should use the step function.
+        Does a crude update of the board of a given colour in a position.
+        """
+        self.get_board(colour)[position] = value
+
+
+    def get_obs(self, colour:str) -> dict:
+        """
+        Return the current observations of a given colour
+        """
+        return {colour: np.array(self.get_board(colour), np.float32)}
+
+
+    def get_board(self, colour: str) -> list[int]:
+        """
+        Returns the board for the given colour
+        """
+        if colour == "w":
+            return self.white_board
+        else:
+            return self.black_board
+
+
+    def set_board(self, board: list[int], agent_colour: str):
+        """
+        Set the abstract game to be a certain fake board.
+        """
+        if self.abstract_game is not None:
+            self.abstract_game.set_board(board, agent_colour)
+            self.white_board = board.copy()
+            self.black_board = board.copy()
 
 
 #run to train the agent

@@ -296,8 +296,8 @@ class DarkHexEnv(MultiAgentEnv):
             initial_turn = "b"
         #action is (col-1 * num_rows) + row-1
         #action : int = action_dict[self.abstract_game.turn]
-        col = (action // self.num_rows) + 1
-        row = (action % self.num_rows) + 1
+        col = (action // self.num_cols) + 1
+        row = (action % self.num_cols) + 1
         # Create a rewards-dict (containing the rewards of the agent that just acted).
         rewards = {"w": 0.0, "b": 0.0}
         # Create a terminated-dict with the special `__all__` agent ID, indicating that
@@ -375,10 +375,10 @@ def main():
     """
     num_cols = 7
     num_rows = 7
-    colour = "b"
+    colour = "w"
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
-    agent.train(iterations=100)
+    agent.train(iterations=1000)
     logging.info("Agent trained")
     logging.debug(agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(
