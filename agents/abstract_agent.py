@@ -9,6 +9,7 @@ from pathlib import Path
 import math
 import logging
 import json
+from collections import defaultdict
 import itertools
 from functools import partial
 from pgmpy.models import FunctionalBayesianNetwork
@@ -367,27 +368,31 @@ class AbstractAgent(Agent):
 
     def learn(self, board: list[list[str]]):
         """
-        Use the final board state to update our cpds
+        Use the final board state to update our cpds.
+        Note that the input board includes the borders.
         """
         # get opponent's pieces into a dictionary
-        final_states = {}
-        total_opp_pieces = 0
-        for y, row in enumerate(board):
-            for x, cell in enumerate(row):
-                opp_piece = 1 if cell == util.swap_colour(self.colour) else 0
-                final_states.update({(x,y): opp_piece})
-                total_opp_pieces += opp_piece
+        final_states = []
+        for y, row in enumerate(board[1:self.num_rows+1]):
+            for x, cell in enumerate(row[1:self.num_cols+1]):
+                if cell == util.swap_colour(self.colour):
+                    final_states.append((x,y))
         # our cell data is {(col,row) : table of data points,
         # each point corresponds to points in other cell tables}
         logging.debug("Creating cell data")
-        cell_data = pd.DataFrame()
+        all_cells = self._other_cells(-1,-1)
+        rows_list = []
         #learn the possible positions for every combination at each stage of the game
-        for i in range(total_opp_pieces):
+        for i in range(1,len(final_states)):
             #TODO allow adjustable learning size
-            if math.comb(total_opp_pieces, i) < LEARNING_SIZE:
+            if math.comb(len(final_states), i) < LEARNING_SIZE:
                 # we only learn combinations if the size is small
-                cell_data.add(list(itertools.combinations(final_states, i)))
+                combs = list(itertools.combinations(final_states, i))
+                for comb in combs:
+                    #create a datapoint for every combination
+                    rows_list.append({cell:int(cell in comb) for cell in all_cells})
         # learn the data for each model
+        cell_data = pd.DataFrame(rows_list)
         logging.info("Learning cell data for each network")
         for network in self.cell_networks.values():
             network.fit(cell_data)

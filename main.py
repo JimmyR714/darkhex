@@ -31,6 +31,7 @@ class Controller:
         self.agent: agents.agent.Agent = None
         self.agent2: agents.agent.Agent = None
         self.learning = False
+        self.referee_board = []
 
 
     def make_window(self) -> None:
@@ -54,7 +55,12 @@ class Controller:
         
         Prerequisite: a new game must have been created
         """
-        self.create_agent(agent_settings=agent_settings)
+        if self.agent is not None:
+            #reset the agent
+            #TODO we cannot change agent types while running now
+            self.agent.reset(self.referee_board)
+        else:
+            self.create_agent(agent_settings=agent_settings)
         #check whether the agent needs to move first
         logging.debug("Checking whether agent must move")
         self.agent_move_check(self.game.turn)
@@ -115,13 +121,15 @@ class Controller:
             self.agent2.reset(self.game.board)
             #reset game
             self.game.reset_board()
-        logging.debug("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
+        logging.info("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
 
 
     def update_boards(self, row: int, col: int, turn: str, result: str = None) -> None:
         """
         Update each game frame to display the correct board
         """
+        #update the referee's board
+        self.referee_board = self.game.board
         if result is None:
             #make the move in the abstract game
             result = self.game.move(row, col, turn)
