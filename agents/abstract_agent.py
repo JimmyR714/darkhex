@@ -9,7 +9,6 @@ from pathlib import Path
 import math
 import logging
 import json
-from collections import defaultdict
 import itertools
 from functools import partial
 from pgmpy.models import FunctionalBayesianNetwork
@@ -29,7 +28,7 @@ import gymnasium as gym
 import numpy as np
 from agents.agent import Agent
 import game.util as util
-import game.hex as hex
+import game.hex
 
 
 LEARNING_SIZE = 1000
@@ -588,7 +587,7 @@ class HexEnv(MultiAgentEnv):
 
         self.num_cols = num_cols
         self.num_rows = num_rows
-        self.abstract_game = hex.AbstractHex(self.num_cols, self.num_rows)
+        self.abstract_game = game.hex.AbstractHex(self.num_cols, self.num_rows)
         self.board = [0] * self.num_cols * self.num_rows
 
 
@@ -597,7 +596,7 @@ class HexEnv(MultiAgentEnv):
         Initialise the abstract game and set the starting players
         """
         #create abstract game of correct size
-        self.abstract_game = hex.AbstractHex(self.num_cols, self.num_rows)
+        self.abstract_game = game.hex.AbstractHex(self.num_cols, self.num_rows)
         self.board = [0] * self.num_cols * self.num_rows
         # return observation dict and infos dict.
         return {"w": np.array(self.board, np.float32)}, {}
@@ -692,7 +691,7 @@ class HexEnv1(MultiAgentEnv):
         Initialise the abstract game and set the starting players
         """
         #create abstract game of correct size
-        self.abstract_game = hex.AbstractHex(self.num_cols, self.num_rows)
+        self.abstract_game = game.hex.AbstractHex(self.num_cols, self.num_rows)
         self.white_board = [0] * self.num_cols * self.num_rows
         self.black_board = [0] * self.num_cols * self.num_rows
         # return observation dict and infos dict.

@@ -17,6 +17,7 @@ import agents.basic_agent
 import agents.rl_agent
 import agents.abstract_agent
 
+
 class Controller:
     """
     Handles the high-level control over the abstract dark hex
