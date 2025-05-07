@@ -117,13 +117,6 @@ class RLAgent(agents.agent.Agent):
                 ),
             )
         )
-        #tune the agent
-        #tune.Tuner(
-        #    "PPO",
-        #    run_config=tune.RunConfig(stop={"training_iteration": 1}),
-        #    param_space=config,
-        #).fit()
-        #finish creating agent object
         return cls(
             num_cols=num_cols,
             num_rows=num_rows,
@@ -133,7 +126,7 @@ class RLAgent(agents.agent.Agent):
         )
 
 
-    def reset(self):
+    def reset(self, board: list[list[str]]):
         """
         Reset the environment that the agent uses.
         Must be used at the start of a game.
@@ -230,9 +223,6 @@ class RLAgent(agents.agent.Agent):
         # Train it for some number of iterations
         for _ in range(iterations):
             pprint(self.algo.train())
-        #save to our rl module
-        #TODO cannot run immediately after training
-        #self.rl_module = self.algo.get_module(self.colour)
 
 
     def save(self, path: str):
@@ -252,7 +242,8 @@ class RLAgent(agents.agent.Agent):
 
 class DarkHexEnv(MultiAgentEnv):
     """
-    Environment to be passed into PPO algorithm
+    Environment for Dark Hex.
+    To be passed into PPO algorithm.
     """
     def __init__(self, config : dict[str, int]):
         super().__init__()
@@ -305,8 +296,8 @@ class DarkHexEnv(MultiAgentEnv):
             initial_turn = "b"
         #action is (col-1 * num_rows) + row-1
         #action : int = action_dict[self.abstract_game.turn]
-        col = (action // self.num_rows) + 1
-        row = (action % self.num_rows) + 1
+        col = (action // self.num_cols) + 1
+        row = (action % self.num_cols) + 1
         # Create a rewards-dict (containing the rewards of the agent that just acted).
         rewards = {"w": 0.0, "b": 0.0}
         # Create a terminated-dict with the special `__all__` agent ID, indicating that
@@ -382,12 +373,12 @@ def main():
     """
     Train the agent on a certain board size
     """
-    num_cols = 5
-    num_rows = 5
-    colour = "b"
+    num_cols = 7
+    num_rows = 7
+    colour = "w"
     agent = RLAgent.to_train(num_cols=num_cols, num_rows=num_rows, colour=colour)
     logging.info("Training Agent")
-    agent.train(iterations=50)
+    agent.train(iterations=1000)
     logging.info("Agent trained")
     logging.debug(agent.save(
         os.path.join(os.path.dirname(__file__), "trained_agents\\rl_agent_" + str(

@@ -154,14 +154,16 @@ def create_board(num_cols: int, num_rows: int) -> list[list[str]]:
     ] + [row]
 
 
-def select_rl_agent(cols: int, rows: int, colour: str, current_path: str) -> str:
+def select_rl_agent(cols: int, rows: int, colour: str,
+                    current_path: str, agent_type: str = "rl_agent") -> str:
     """
     Select the correct agent path based on game settings
     Returns the full correct path.
     """
-    agent_path = "agents\\trained_agents\\rl_agent_" + str(cols) + "x" + str(rows) + "_" + colour
+    path_1 = "agents\\trained_agents\\" + agent_type
+    agent_path = path_1 + "_" + str(cols) + "x" + str(rows) + "_" + colour
     path = os.path.join(current_path, agent_path)
     if not os.path.exists(path):
         raise ValueError(f"No trained RL agent for these settings, checked path {path}")
-    logging.debug("Fetching agent from %s", path)
+    logging.info("Fetching agent from %s", path)
     return path

@@ -14,6 +14,8 @@ MAX_COLS = 11
 MAX_DEPTH = 10
 MAX_BELIEFS = 1024
 MAX_ITERS = 25
+MAX_WIDTH = 10
+MAX_BOARDS = 100
 
 class DisplayWindow(tk.Tk):
     """
@@ -138,6 +140,7 @@ class DisplayWindow(tk.Tk):
             self.won = True
             self.win_title.config(text=f"{util.colour_map[colour]} has won!")
 
+
 class MainMenuFrame(tk.Frame):
     """
     Frame that contains the main menu for the program.
@@ -148,6 +151,10 @@ class MainMenuFrame(tk.Frame):
     cols = 3
     depth = [3,3]
     beliefs = [16,16]
+    width_1 = [5,5]
+    width_2_vc = [3,3]
+    width_2_semi_vc = [2,2]
+    fake_boards = [10,10]
     iterations = 7
 
     def __init__(self, master: DisplayWindow):
@@ -157,38 +164,22 @@ class MainMenuFrame(tk.Frame):
         btn_newgame = tk.Button(self, text="New Game", command=master.new_game)
 
         # row changing
-        lbl_rows = tk.Label(self, text="Rows")
         frm_rows = tk.Frame(self)
-        lbl_row_value = tk.Label(master=frm_rows, text=str(self.rows))
-        btn_row_decrease = tk.Button(
-            master=frm_rows, text="-",
-            command=partial(self.change_lbl, False, "rows", lbl_row_value)
+        self.add_parameter(
+            frm=frm_rows,
+            lbl_txt="Rows",
+            lbl_init_val=str(self.rows),
+            update="rows"
         )
-        btn_row_increase = tk.Button(
-            master=frm_rows, text="+", command=partial(self.change_lbl, True, "rows", lbl_row_value)
-        )
-
+    
         #column changing
-        lbl_cols = tk.Label(self, text="Cols")
         frm_cols = tk.Frame(self)
-        lbl_col_value = tk.Label(master=frm_cols, text=str(self.cols))
-        btn_col_decrease = tk.Button(
-            master=frm_cols, text="-",
-            command=partial(self.change_lbl, False, "cols", lbl_col_value)
+        self.add_parameter(
+            frm=frm_cols,
+            lbl_txt="Cols",
+            lbl_init_val=str(self.cols),
+            update="cols"
         )
-        btn_col_increase = tk.Button(
-            master=frm_cols, text="+", command=partial(self.change_lbl, True, "cols", lbl_col_value)
-        )
-
-        # place row widgets into row frame
-        btn_row_decrease.grid(row=0, column=0, sticky="ew")
-        lbl_row_value.grid(row=0, column=1, sticky="ew")
-        btn_row_increase.grid(row=0, column=2, sticky="ew")
-
-        # place col widgets into col frame
-        btn_col_decrease.grid(row=0, column=0, sticky="ew")
-        lbl_col_value.grid(row=0, column=1, sticky="ew")
-        btn_col_increase.grid(row=0, column=2, sticky="ew")
 
         #display selection
         lbl_displays = tk.Label(self, text="Displays")
@@ -271,9 +262,7 @@ class MainMenuFrame(tk.Frame):
 
         # place widgets into menu frame
         btn_newgame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        lbl_rows.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         frm_rows.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
-        lbl_cols.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
         frm_cols.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
         lbl_displays.grid(row=5, column=0, sticky="ew", padx=5, pady=5)
         frm_displays.grid(row=6, column=0, sticky="ew", padx=5, pady=5)
@@ -288,27 +277,35 @@ class MainMenuFrame(tk.Frame):
         """
         match dim:
             case "rows":
-                self.rows = min(max(self.rows + (2*int(incr)-1), 1), MAX_ROWS)
-                x = self.rows
+                x = self.rows = min(max(self.rows + (2*int(incr)-1), 1), MAX_ROWS)
             case "cols":
                 x = self.cols = min(max(self.cols + (2*int(incr)-1), 1), MAX_COLS)
-            case "depth_1":
-                x = self.depth[0] = min(max(self.depth[0] + (2*int(incr)-1), 1), MAX_DEPTH)
-            case "depth_2":
-                x = self.depth[1] = min(max(self.depth[1] + (2*int(incr)-1), 1), MAX_DEPTH)
-            case "beliefs_1":
-                #this one doubles and halves each click
-                x = self.beliefs[0] = int(
-                    min(max(self.beliefs[0] * (3*int(incr)+1)/2, 1), MAX_BELIEFS)
-                )
-            case "beliefs_2":
-                x = self.beliefs[1] = int(
-                    min(max(self.beliefs[1] * (3*int(incr)+1)/2, 1), MAX_BELIEFS)
-                )
             case "iters":
                 x = self.iterations = int(
                     min(max(self.iterations + 2*(2*int(incr)-1), 1), MAX_ITERS)
                 )
+            case _:
+                n = int(dim[-1]) - 1
+                if "depth" in dim:
+                    x = self.depth[n] = min(max(self.depth[n] + (2*int(incr)-1), 1), MAX_DEPTH)
+                elif "beliefs" in dim:
+                    x = self.beliefs[n] = int(
+                        min(max(self.beliefs[n] * (3*int(incr)+1)/2, 1), MAX_BELIEFS)
+                    )
+                elif "width_1" in dim:
+                    x = self.width_1[n] = min(max(self.width_1[n] + (2*int(incr)-1), 1), MAX_WIDTH)
+                elif "width_2_vc" in dim:
+                    x = self.width_2_vc[n] = min(
+                        max(self.width_2_vc[n] + (2*int(incr)-1), 1), MAX_WIDTH
+                    )
+                elif "width_2_semi_v" in dim:
+                    x = self.width_2_semi_vc[n] = min(
+                        max(self.width_2_semi_vc[n] + (2*int(incr)-1), 1), MAX_WIDTH
+                    )
+                elif "fake_boards" in dim:
+                    x = self.fake_boards[n] = min(
+                        max(self.fake_boards[n] + 4*(2*int(incr)-1), 2), MAX_BOARDS
+                    )
 
         #update the correct label with the new text
         label["text"] = f"{x}"
@@ -321,10 +318,12 @@ class MainMenuFrame(tk.Frame):
         for widget in self.frm_game_settings.winfo_children():
             widget.destroy()
         # agent selection
+        # ADD NEW AGENT HERE
         agent_options = [
             "General",
             "Basic",
-            "RL"
+            "RL",
+            "Abstract"
         ]
         match game_type:
             case "Player vs Player":
@@ -417,6 +416,30 @@ class MainMenuFrame(tk.Frame):
         self.update_game_menu(self.game_selection.get())
 
 
+    def add_parameter(self, frm: tk.Frame, lbl_txt: str, lbl_init_val: str, update: str):
+        """
+        Add some agent parameter adjustable by up/down buttons with a max/min.
+        """
+        tk.Label(frm, text=lbl_txt).grid(row=0, column=1, sticky="ew")
+        lbl_value = tk.Label(master=frm, text=lbl_init_val)
+        tk.Button(
+            master=frm, text="-",
+            command=partial(self.change_lbl, False, update, lbl_value)
+        ).grid(row=1, column=0, sticky="ew")
+        lbl_value.grid(row=1, column=1, sticky="ew")
+        tk.Button(
+            master=frm, text="+",
+            command=partial(self.change_lbl, True, update, lbl_value)
+        ).grid(row=1, column=2, sticky="ew")
+
+
+    def add_checkbox(self, frm: tk.Frame, lbl_txt: str, tk_var: tk.Variable):
+        """
+        Add checkbox parameter.
+        """
+        tk.Label(frm, text=lbl_txt).grid(row=0, column=0, sticky="ew")
+        tk.Checkbutton(frm, variable=tk_var).grid(row=0, column=1, sticky="ew")
+
     def update_agent_menu(self, agent_num : int, agent_type: str = "General"):
         """
         Change the agent menu that displays once we change our agent selection
@@ -433,6 +456,7 @@ class MainMenuFrame(tk.Frame):
             for widget in frm.winfo_children():
                 widget.destroy()
         #update menu based on selection
+        # ADD AGENT SETTINGS HERE
         match agent_type:
             case "General":
                 #parameter currently does nothing
@@ -441,33 +465,54 @@ class MainMenuFrame(tk.Frame):
                 settings["depth"] = tk.IntVar(value=3)
                 settings["beliefs"] = tk.IntVar(value=20)
                 #depth changing
-                tk.Label(frm, text="Depth").grid(row=0, column=1, sticky="ew")
-                lbl_depth_value = tk.Label(master=frm, text=str(self.depth[agent_num-1]))
-                tk.Button(
-                    master=frm, text="-",
-                    command=partial(self.change_lbl, False, f"depth_{agent_num}", lbl_depth_value)
-                ).grid(row=1, column=0, sticky="ew")
-                lbl_depth_value.grid(row=1, column=1, sticky="ew")
-                tk.Button(
-                    master=frm, text="+",
-                    command=partial(self.change_lbl, True, f"depth_{agent_num}", lbl_depth_value)
-                ).grid(row=1, column=2, sticky="ew")
+                frm_depth = tk.Frame(frm)
+                self.add_parameter(
+                    frm=frm_depth,
+                    lbl_txt="Depth",
+                    lbl_init_val=str(self.depth[agent_num-1]),
+                    update=f"depth_{agent_num}"
+                )
+                frm_depth.grid(row=1, sticky="ew")
                 #beliefs changing
-                tk.Label(frm, text="Beliefs").grid(row=2, column=1, sticky="ew")
-                lbl_beliefs_value = tk.Label(master=frm, text=str(self.beliefs[agent_num-1]))
-                tk.Button(
-                    master=frm, text="-",
-                    command=partial(
-                        self.change_lbl, False, f"beliefs_{agent_num}", lbl_beliefs_value
-                    )
-                ).grid(row=3, column=0, sticky="ew")
-                lbl_beliefs_value.grid(row=3, column=1, sticky="ew")
-                tk.Button(
-                    master=frm, text="+",
-                    command=partial(
-                        self.change_lbl, True, f"beliefs_{agent_num}", lbl_beliefs_value
-                    )
-                ).grid(row=3, column=2, sticky="ew")
+                frm_beliefs = tk.Frame(frm)
+                self.add_parameter(
+                    frm=frm_beliefs,
+                    lbl_txt="Beliefs",
+                    lbl_init_val=str(self.beliefs[agent_num-1]),
+                    update=f"beliefs_{agent_num}"
+                )
+                frm_beliefs.grid(row=2, sticky="ew")
+            case "Abstract":
+                #add up/down parameters
+                settings["width_1"] = tk.IntVar(value=5)
+                settings["width_2_vc"] = tk.IntVar(value=3)
+                settings["width_2_semi_vc"] = tk.IntVar(value=2)
+                settings["fake_boards"] = tk.IntVar(value=10)
+                frm_width_1 = tk.Frame(frm)
+                frm_width_2_vc = tk.Frame(frm)
+                frm_width_2_semi_vc = tk.Frame(frm)
+                frm_fake_boards = tk.Frame(frm)
+                self.add_parameter(frm_width_1, "Width 1",
+                        str(self.width_1[agent_num-1]), f"width_1_{agent_num}")
+                self.add_parameter(frm_width_2_vc, "Width 2 VC",
+                        str(self.width_2_vc[agent_num-1]), f"width_2_vc_{agent_num}")
+                self.add_parameter(frm_width_2_semi_vc, "Width 2 SVC",
+                        str(self.width_2_semi_vc[agent_num-1]), f"width_2_semi_vc_{agent_num}")
+                self.add_parameter(frm_fake_boards, "Fake Boards",
+                        str(self.fake_boards[agent_num-1],), f"fake_boards_{agent_num}")
+                frm_width_1.grid(row=1, sticky="ew")
+                frm_width_2_vc.grid(row=2, sticky="ew")
+                frm_width_2_semi_vc.grid(row=3, sticky="ew")
+                frm_fake_boards.grid(row=4, sticky="ew")
+                #add learning parameter
+                settings["learning"] = tk.BooleanVar(value=False)
+                frm_learning = tk.Frame(frm)
+                self.add_checkbox(
+                    frm=frm_learning,
+                    lbl_txt="Online",
+                    tk_var=settings["learning"]
+                )
+                frm_learning.grid(row=5, sticky="ew")
 
 
 class GameFrame(tk.Frame):

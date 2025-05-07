@@ -3,17 +3,23 @@
         "argmin",
         "coeff",
         "columnspan",
+        "cpds",
         "darkhex",
         "fcnet",
         "gameframe",
         "HEXY",
         "hiddens",
+        "intvars",
         "LTSM",
+        "MCMC",
+        "memoryless",
         "newgame",
         "offvalue",
         "onvalue",
         "padx",
         "pady",
+        "pgmpy",
+        "pyro",
         "rllib"
     ]
 }

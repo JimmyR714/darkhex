@@ -1,5 +1,10 @@
 """
-Module for the control of the program flow
+Main module for the control of the program flow.
+
+To add an agent to the system:
+- Add a case to the create agent function for the new name of the agent
+- Add the agent name to the agent_options list in display.MainMenuFrame.update_game_menu
+- Add any agent settings to display.MainMenuFrame.update_agent_menu
 """
 
 import logging
@@ -10,6 +15,8 @@ import game.darkhex as darkhex
 import agents.agent
 import agents.basic_agent
 import agents.rl_agent
+import agents.abstract_agent
+
 
 class Controller:
     """
@@ -24,6 +31,8 @@ class Controller:
         self.game: darkhex.AbstractDarkHex = None
         self.agent: agents.agent.Agent = None
         self.agent2: agents.agent.Agent = None
+        self.learning = False
+        self.referee_board = []
 
 
     def make_window(self) -> None:
@@ -43,10 +52,16 @@ class Controller:
 
     def new_pva_game(self, agent_settings: dict):
         """
-        Create a player vs agent game
+        Create a player vs agent game.
+        
         Prerequisite: a new game must have been created
         """
-        self.create_agent(agent_settings=agent_settings)
+        if self.agent is not None:
+            #reset the agent
+            #TODO we cannot change agent types while running now
+            self.agent.reset(self.referee_board)
+        else:
+            self.create_agent(agent_settings=agent_settings)
         #check whether the agent needs to move first
         logging.debug("Checking whether agent must move")
         self.agent_move_check(self.game.turn)
@@ -102,18 +117,20 @@ class Controller:
             else:
                 agent_2_wins += 1
                 logging.debug("Agent 2 has won")
+            #reset agents, send referee's board in case they can learn
+            self.agent.reset(self.game.board)
+            self.agent2.reset(self.game.board)
             #reset game
             self.game.reset_board()
-            #reset agents
-            self.agent.reset()
-            self.agent2.reset()
-        logging.debug("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
+        logging.info("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
 
 
     def update_boards(self, row: int, col: int, turn: str, result: str = None) -> None:
         """
         Update each game frame to display the correct board
         """
+        #update the referee's board
+        self.referee_board = self.game.board
         if result is None:
             #make the move in the abstract game
             result = self.game.move(row, col, turn)
@@ -185,7 +202,31 @@ class Controller:
                         current_path=os.path.dirname(__file__)
                     )
                 )
-                new_agent.reset()
+                new_agent.reset(self.game.board)
+            case "Abstract":
+                #change settings from intvars
+                if not isinstance(agent_settings["width_1"], int):
+                    agent_settings.update(
+                        {
+                            "width_1": agent_settings["width_1"].get(),
+                            "width_2_vc": agent_settings["width_2_vc"].get(),
+                            "width_2_semi_vc": agent_settings["width_2_semi_vc"].get(),
+                            "learning": agent_settings["learning"].get(),
+                            "fake_boards": agent_settings["fake_boards"].get()
+                        }
+                    )
+                new_agent = agents.abstract_agent.AbstractAgent(
+                    num_cols=num_cols,
+                    num_rows=num_rows,
+                    hex_path=util.select_rl_agent(
+                        cols=num_cols,
+                        rows=num_rows,
+                        colour=agent_settings["colour"],
+                        current_path=os.path.dirname(__file__),
+                        agent_type="hex_agent"
+                    ),
+                    settings=agent_settings
+                )
             case _:
                 raise ValueError(f"Agent type \"{agent}\" does not exist.")
         #check which number agent this is
