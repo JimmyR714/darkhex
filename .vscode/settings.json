@@ -20,6 +20,7 @@
         "pady",
         "pgmpy",
         "pyro",
-        "rllib"
+        "rllib",
+        "textvariable"
     ]
 }
