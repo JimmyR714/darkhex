@@ -150,6 +150,38 @@ class Controller:
         self.agent_move_check(self.game.turn)
 
 
+    def select_rl_agent(self, cols: int, rows: int, colour: str,
+                    current_path: str, agent_type: str = "rl_agent") -> str:
+        """
+        Select the correct agent path based on game settings
+        Returns the full correct path.
+        """
+        path_1 = "agents\\trained_agents\\" + agent_type
+        agent_path = path_1 + "_" + str(cols) + "x" + str(rows) + "_" + colour
+        path = os.path.join(current_path, agent_path)
+        if not os.path.exists(path):
+            #train a new agent
+            match agent_type:
+                case "rl_agent":
+                    agent = agents.rl_agent.RLAgent.to_train(
+                        num_cols=cols, num_rows=rows, colour=colour
+                    )
+                case "hex_agent":
+                    agent = agents.abstract_agent.HexAgent.to_train(
+                        num_cols=cols, num_rows=rows, colour=colour
+                    )
+            logging.info("Training Agent")
+            agent.train(iterations=100)
+            logging.info("Agent trained")
+            logging.debug(agent.save(
+                os.path.join(os.path.dirname(__file__), path_1 + "_" + str(
+                    cols) + "x" + str(rows) + "_" + colour)
+            ))
+        else:
+            logging.info("Fetching agent from %s", path)
+        return path
+
+
     def agent_move_check(self, turn: str) -> None:
         """
         Checks whether the agent needs to move. 
@@ -200,7 +232,7 @@ class Controller:
                 )
             case "RL":
                 new_agent = agents.rl_agent.RLAgent.from_file(
-                    path=util.select_rl_agent(
+                    path=self.select_rl_agent(
                         cols=num_cols,
                         rows=num_rows,
                         colour=agent_settings["colour"],
@@ -208,22 +240,22 @@ class Controller:
                     )
                 )
                 new_agent.reset(self.game.board)
-            case "Abstract":
+            case "Bayesian":
                 #change settings from intvars
                 if not isinstance(agent_settings["width_1"], int):
                     agent_settings.update(
                         {
-                            "width_1": agent_settings["width_1"].get(),
-                            "width_2_vc": agent_settings["width_2_vc"].get(),
-                            "width_2_semi_vc": agent_settings["width_2_semi_vc"].get(),
+                            "width_1": int(agent_settings["width_1"].get()),
+                            "width_2_vc": int(agent_settings["width_2_vc"].get()),
+                            "width_2_semi_vc": int(agent_settings["width_2_semi_vc"].get()),
                             "learning": agent_settings["learning"].get(),
-                            "fake_boards": agent_settings["fake_boards"].get()
+                            "fake_boards": int(agent_settings["fake_boards"].get())
                         }
                     )
                 new_agent = agents.abstract_agent.AbstractAgent(
                     num_cols=num_cols,
                     num_rows=num_rows,
-                    hex_path=util.select_rl_agent(
+                    hex_path=self.select_rl_agent(
                         cols=num_cols,
                         rows=num_rows,
                         colour=agent_settings["colour"],

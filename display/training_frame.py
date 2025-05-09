@@ -3,8 +3,10 @@ Module for the training frame where we can train and simulate agents
 """
 
 import tkinter as tk
+from tkinter import font
 import logging
 from functools import partial
+import pandas as pd
 
 
 class TrainingFrame(tk.Frame):
@@ -17,28 +19,35 @@ class TrainingFrame(tk.Frame):
         tk.Label(master=self, text="Training Frame").grid(row=0, column=0, sticky="nw")
         #add game settings
         frm_game_settings = tk.Frame(self)
+        #add rows and columns
+        self.num_rows = tk.StringVar(value="3")
+        tk.Label(frm_game_settings, text="Rows").grid(row=0, column=0)
+        tk.Entry(frm_game_settings, textvariable=self.num_rows).grid(row=0, column=1)
+        self.num_cols = tk.StringVar(value="3")
+        tk.Label(frm_game_settings, text="Cols").grid(row=1, column=0)
+        tk.Entry(frm_game_settings, textvariable=self.num_cols).grid(row=1, column=1)
         #add simulation iteration variable
         self.simulation_iters = tk.StringVar(value="25")
-        tk.Label(frm_game_settings, text="Simulation Iterations").grid(row=0, column=0)
-        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=0, column=1)
+        tk.Label(frm_game_settings, text="Simulation Iterations").grid(row=2, column=0)
+        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=2, column=1)
         #add simulation step variable
         self.simulation_step = tk.StringVar(value="5")
-        tk.Label(frm_game_settings, text="Iteration Step").grid(row=1, column=0)
-        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=1, column=1)
+        tk.Label(frm_game_settings, text="Iteration Step").grid(row=3, column=0)
+        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=3, column=1)
         #add simulation option selection
         sim_options = [
             "Offline",
             "Online vs Offline",
             "Online"
         ]
-        tk.Label(frm_game_settings, text="Simulation Type").grid(row=2, column=0)
+        tk.Label(frm_game_settings, text="Simulation Type").grid(row=4, column=0)
         self.sim_type = tk.StringVar(value="Offline")
         tk.OptionMenu(
             frm_game_settings,
             self.sim_type,
             *sim_options,
             #command=partial(self.update_agent_and_game_menu, 1)
-        ).grid(row=2, column=1)
+        ).grid(row=4, column=1)
         frm_game_settings.grid(row=1, column=0, sticky="nw")
         #allow us to add an agent to list of agents to be run
         self.frm_add_agent = tk.Frame(master=self)
@@ -105,6 +114,7 @@ class TrainingFrame(tk.Frame):
         #fill in the frame
         agent_type = self.agent_type.get()
         agent_name = self.agent_name.get()
+        tk.Label(frm_agent_info, text=agent_name,font=font.Font(underline=True)).pack()
         tk.Label(frm_agent_info, text=agent_type).pack()
         match agent_type:
             case "General":
@@ -177,21 +187,28 @@ class TrainingFrame(tk.Frame):
                     for agent_2 in self.current_agents
                 ]
                 #simulate every combination and save results
-                results = []
+                results = pd.DataFrame(
+                    columns=[a["name"] for a in self.current_agents],
+                    index=[a["name"] for a in self.current_agents]
+                )
                 for agent_1, agent_2 in agent_combs:
                     agent_1_settings = agent_1
                     agent_1_settings["colour"] = "w"
                     agent_2_settings = agent_2
                     agent_2_settings["colour"] = "b"
-                    iterations = self.simulation_iters.get()
+                    iterations = int(self.simulation_iters.get())
                     #run the new game in the controller
                     agent_1_name = agent_1_settings["name"]
                     agent_2_name = agent_2_settings["name"]
                     logging.info("Simulating match: %s vs %s", agent_1_name, agent_2_name)
+                    self.master.controller.new_game(
+                        num_cols=int(self.num_cols.get()),
+                        num_rows=int(self.num_rows.get())
+                    )
                     wins = self.master.controller.new_ava_game(
                         agent_1_settings, agent_2_settings, iterations
                     )
-                    results.append({"w": agent_1_name, "b": agent_2_name, "wins": wins})
+                    results.at[agent_1_name, agent_2_name] = wins
                 self.draw_table(results)
             case "Online vs Offline":
                 #zip the online agent with the offline ones
@@ -242,14 +259,14 @@ class TrainingFrame(tk.Frame):
                 settings["fake_boards"] = tk.IntVar(value=10)
                 tk.Label(frm, text="Fake Boards").pack()
                 tk.Entry(frm, textvariable=settings["fake_boards"]).pack()
+                settings["learning"] = tk.BooleanVar(value=False)
                 if self.sim_type.get() != "Offline":
                     #add learning parameter
-                    settings["learning"] = tk.BooleanVar(value=False)
                     tk.Label(frm, text="Online").pack()
                     tk.Checkbutton(frm, variable=settings["learning"]).pack()
             case "From File":
                 pass
-        frm.grid(row=1,column=1)
+        frm.grid(row=2,column=0)
         self.frm_agent_settings = frm
 
 
@@ -259,7 +276,8 @@ class TrainingFrame(tk.Frame):
         """
 
 
-    def draw_table(self, results: dict[str, str|int]):
+    def draw_table(self, results: pd.DataFrame):
         """
         Draw a table of results following a simulation involving offline agents.
         """
+        print(results.to_latex())

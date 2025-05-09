@@ -199,7 +199,7 @@ class MainMenuFrame(tk.Frame):
             "General",
             "Basic",
             "RL",
-            "Abstract"
+            "Bayesian"
         ]
         match game_type:
             case "Player vs Player":
@@ -359,7 +359,7 @@ class MainMenuFrame(tk.Frame):
                     update=f"beliefs_{agent_num}"
                 )
                 frm_beliefs.grid(row=2, sticky="ew")
-            case "Abstract":
+            case "Bayesian":
                 #add up/down parameters
                 settings["width_1"] = tk.IntVar(value=5)
                 settings["width_2_vc"] = tk.IntVar(value=3)
