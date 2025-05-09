@@ -64,6 +64,8 @@ class AbstractAgent(Agent):
         logging.info("Cell networks created.")
         self.opponents_unseen = 0
         self.possible_empty_cells = num_cols * num_rows
+        if self.colour == "b":
+            self.opponents_unseen += 1
         logging.info("Getting Hex Agent")
         self.hex_agent = HexAgent.from_file(hex_path)
         logging.info("Got Hex Agent.")
@@ -141,9 +143,11 @@ class AbstractAgent(Agent):
             # we know (col, row) contains our colour
             self.update_cell_cpd(col, row, distribution.Bernoulli(0))
             self.fixed_network(col,row,0)
+        #TODO find the real reason for the cell count bug
+        cell_count = min(1, max(0, self.opponents_unseen / self.possible_empty_cells))
         self.set_cell_cpds(
             cells=self._possible_empty_cells(),
-            dist=distribution.Bernoulli(self.opponents_unseen / self.possible_empty_cells)
+            dist=distribution.Bernoulli(cell_count)
         )
         #TODO find a better distribution for the cell cpds
         return move_again
@@ -157,9 +161,11 @@ class AbstractAgent(Agent):
         )
         if self.learning:
             self.learn(board)
-        self.possible_empty_cells = self.num_cols * self.num_rows
         self.int_board = [0]*self.num_cols*self.num_rows
+        self.possible_empty_cells = self.num_cols * self.num_rows
         self.opponents_unseen = 0
+        if self.colour == "b":
+            self.opponents_unseen += 1
         self.board = [["e"]*self.num_cols for i in range(self.num_rows)]
 
 

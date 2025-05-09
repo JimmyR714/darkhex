@@ -7,6 +7,7 @@ from tkinter import font
 import logging
 from functools import partial
 import pandas as pd
+import game.util as util
 
 
 class TrainingFrame(tk.Frame):
@@ -33,7 +34,7 @@ class TrainingFrame(tk.Frame):
         #add simulation step variable
         self.simulation_step = tk.StringVar(value="5")
         tk.Label(frm_game_settings, text="Iteration Step").grid(row=3, column=0)
-        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=3, column=1)
+        tk.Entry(frm_game_settings, textvariable=self.simulation_step).grid(row=3, column=1)
         #add simulation option selection
         sim_options = [
             "Offline",
@@ -82,6 +83,7 @@ class TrainingFrame(tk.Frame):
         self.frm_add_agent.grid(row=2,column=0,sticky="nw")
         #show the agents we have added so far
         self.current_agents = []
+        self.online_agents = []
         self.frm_current_agents = tk.Frame(self, relief=tk.RAISED, bd=2, padx=5, pady=5)
         self.frm_current_agents.grid(row=3, column=0,sticky="nw")
         #buttons to reset agents, or allow training for ones that don't exist
@@ -112,8 +114,11 @@ class TrainingFrame(tk.Frame):
         #create the frame for displaying info
         frm_agent_info = tk.Frame(self.frm_current_agents, relief=tk.RAISED, bd=2, padx=5, pady=5)
         #fill in the frame
+        add = True
         agent_type = self.agent_type.get()
         agent_name = self.agent_name.get()
+        self.agent_settings["type"] = agent_type
+        self.agent_settings["name"] = agent_name
         tk.Label(frm_agent_info, text=agent_name,font=font.Font(underline=True)).pack()
         tk.Label(frm_agent_info, text=agent_type).pack()
         match agent_type:
@@ -148,16 +153,18 @@ class TrainingFrame(tk.Frame):
                     text=f"Fake Boards = {self.agent_settings["fake_boards"].get()}"
                 ).pack()
                 if self.sim_type.get() != "Offline":
-                    learning = "Online" if self.agent_settings["learning"].get() else "Offline"
+                    learning_bool = self.agent_settings["learning"].get()
+                    learning = "Online" if learning_bool else "Offline"
                     tk.Label(frm_agent_info, text=learning).pack()
+                    add = False
+                    self.online_agents.append(self.agent_settings.copy())
             case "RL":
                 pass
             case "From File":
                 pass
         frm_agent_info.grid(row=0, column=agent_pos, sticky="ns")
-        self.agent_settings["type"] = agent_type
-        self.agent_settings["name"] = agent_name
-        self.current_agents.append(self.agent_settings.copy())
+        if add:
+            self.current_agents.append(self.agent_settings.copy())
         self.agent_settings = {}
         self.update_agent_menu(agent_type)
 
@@ -192,30 +199,111 @@ class TrainingFrame(tk.Frame):
                     index=[a["name"] for a in self.current_agents]
                 )
                 for agent_1, agent_2 in agent_combs:
-                    agent_1_settings = agent_1
-                    agent_1_settings["colour"] = "w"
-                    agent_2_settings = agent_2
-                    agent_2_settings["colour"] = "b"
+                    agent_1["colour"] = "w"
+                    agent_2["colour"] = "b"
                     iterations = int(self.simulation_iters.get())
                     #run the new game in the controller
-                    agent_1_name = agent_1_settings["name"]
-                    agent_2_name = agent_2_settings["name"]
+                    agent_1_name = agent_1["name"]
+                    agent_2_name = agent_2["name"]
                     logging.info("Simulating match: %s vs %s", agent_1_name, agent_2_name)
                     self.master.controller.new_game(
                         num_cols=int(self.num_cols.get()),
                         num_rows=int(self.num_rows.get())
                     )
                     wins = self.master.controller.new_ava_game(
-                        agent_1_settings, agent_2_settings, iterations
+                        agent_1, agent_2, iterations
                     )
                     results.at[agent_1_name, agent_2_name] = wins
                 self.draw_table(results)
             case "Online vs Offline":
-                #zip the online agent with the offline ones
-                pass
+                assert len(self.online_agents) > 0
+                iters = int(self.simulation_iters.get())
+                step = self.simulation_step.get()
+                iter_range = range(step, iters, step)
+                if len(self.online_agents) == 1:
+                    #if there is only one online agent, we put all offline agents on the same graph
+                    #simulate online vs each offline agent for each colour
+                    online_agent = self.online_agents[0]
+                    online_agent["colour"] = "w"
+                    #for each colour matchup
+                    for offline_colour in ["b", "w"]:
+                        #we create a new results frame for the graph
+                        results = pd.DataFrame(
+                            columns=[a["name"] for a in self.current_agents],
+                            index=iter_range
+                        )
+                        #for every offline agent
+                        for offline_agent in self.current_agents:
+                            #we simulate the game
+                            offline_agent["colour"] = offline_colour
+                            offline_agent_name = offline_agent["name"]
+                            self.master.controller.new_game(
+                                num_cols=int(self.num_cols.get()),
+                                num_rows=int(self.num_rows.get())
+                            )
+                            #simulate each agent with the correct colour
+                            if offline_colour == "w":
+                                wins = self.master.controller.new_ava_game(
+                                    offline_agent, online_agent, iters
+                                )
+                            else:
+                                wins = self.master.controller.new_ava_game(
+                                    online_agent, offline_agent, iters
+                                )
+                            #then add to our results table
+                            for i, num_iters in enumerate(iter_range):
+                                results.at[num_iters, offline_agent_name] = wins[i]
+                        #when we are done with one colour, we plot the graph and switch
+                        self.draw_graph(results, title=f"Online {online_agent["colour"]}")
+                        online_agent["colour"] = "b"
+                else:
+                    #if there is more than one online agent,
+                    #we produce a graph for each offline agent,
+                    #showing online performance vs a single agent
+
+                    #for each offline agent (i.e. each graph)
+                    for offline_agent in self.current_agents:
+                        #we get a new set of results
+                        results = pd.DataFrame(
+                            columns=[
+                                (agent["name"], colour)
+                                for agent in self.online_agents
+                                for colour in ["w", "b"]
+                            ],
+                            index=iter_range
+                        )
+                        offline_agent_name = offline_agent["name"]
+                        #for each colour and online agent pair
+                        for offline_colour in ["b", "w"]:
+                            offline_agent["colour"] = offline_colour
+                            for online_agent in self.online_agents:
+                                online_agent["colour"] = util.swap_colour(offline_colour)
+                                online_agent_name = online_agent["name"]
+                                #we simulate the game
+                                self.master.controller.new_game(
+                                    num_cols=int(self.num_cols.get()),
+                                    num_rows=int(self.num_rows.get())
+                                )
+                                #ensure each agent is the correct colour
+                                if offline_colour == "w":
+                                    wins = self.master.controller.new_ava_game(
+                                        offline_agent, online_agent, iters
+                                    )
+                                else:
+                                    wins = self.master.controller.new_ava_game(
+                                        online_agent, offline_agent, iters
+                                    )
+                                #input values into the results table
+                                for i, num_iters in enumerate(iter_range):
+                                    results.at[
+                                        num_iters,
+                                        (online_agent_name, online_agent["colour"])
+                                    ] = wins[i]
+                        self.draw_graph(results, title=f"{offline_agent_name}")
             case "Online":
                 #we only have one combination
-                pass
+                assert len(self.current_agents) == 0
+                assert len(self.online_agents) == 2
 
 
     def update_agent_menu(self, agent_type: str):
@@ -270,7 +358,7 @@ class TrainingFrame(tk.Frame):
         self.frm_agent_settings = frm
 
 
-    def draw_graph(self):
+    def draw_graph(self, results: pd.DataFrame, title: str):
         """
         Draw a graph of results following a simulation involving an online agent.
         """
@@ -281,3 +369,5 @@ class TrainingFrame(tk.Frame):
         Draw a table of results following a simulation involving offline agents.
         """
         print(results.to_latex())
+        #also save the table to a file
+        results.to_csv("simulations\\results.csv", encoding="utf-8")

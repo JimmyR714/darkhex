@@ -9,7 +9,6 @@ To add an agent to the system:
 
 import logging
 import os
-import game.util as util
 import game.darkhex as darkhex
 from display.display_window import DisplayWindow
 import agents.agent
@@ -79,7 +78,7 @@ class Controller:
         return self.simulate_ava_game(iterations)
 
 
-    def simulate_ava_game(self, iterations: int = 1) -> int:
+    def simulate_ava_game(self, iterations = 1, iter_step = 0) -> int|list[int]:
         """
         Simulates a certain number of iterations of agent vs agent games
         Returns:
@@ -88,6 +87,7 @@ class Controller:
         agent_1_wins = 0
         agent_2_wins = 0
         agent_1_colour = self.agent.colour
+        results = []
         #play many games
         for game_num in range(iterations):
             logging.debug("Starting agent vs agent game %s", game_num+1)
@@ -126,8 +126,14 @@ class Controller:
             self.agent2.reset(self.game.board)
             #reset game
             self.game.reset_board()
+            #update results if we have an iteration step
+            if iter_step > 0 and game_num > 0 and (game_num+1) % iter_step == 0:
+                results.append(float(agent_1_wins)/float((game_num+1)))
         logging.info("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
-        return agent_1_wins
+        if iter_step > 0:
+            return results
+        else:
+            return agent_1_wins
 
 
     def update_boards(self, row: int, col: int, turn: str, result: str = None) -> None:
