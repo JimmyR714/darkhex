@@ -10,8 +10,8 @@ To add an agent to the system:
 import logging
 import os
 import game.util as util
-import game.display as display
 import game.darkhex as darkhex
+from display.display_window import DisplayWindow
 import agents.agent
 import agents.basic_agent
 import agents.rl_agent
@@ -27,7 +27,7 @@ class Controller:
         """
         Set constants necessary (maybe from a config file)
         """
-        self.window: display.DisplayWindow = None
+        self.window: DisplayWindow = None
         self.game: darkhex.AbstractDarkHex = None
         self.agent: agents.agent.Agent = None
         self.agent2: agents.agent.Agent = None
@@ -39,7 +39,7 @@ class Controller:
         """
         Create the display window for the program
         """
-        self.window = display.DisplayWindow(self)
+        self.window = DisplayWindow(self)
         self.window.mainloop()
 
 
