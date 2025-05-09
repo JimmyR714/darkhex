@@ -7,6 +7,7 @@ from tkinter import font
 import logging
 from functools import partial
 import pandas as pd
+import matplotlib.pyplot as plt
 import game.util as util
 
 
@@ -362,6 +363,12 @@ class TrainingFrame(tk.Frame):
         """
         Draw a graph of results following a simulation involving an online agent.
         """
+        #save the graph to a file
+        results.plot(title=title)
+        plt.savefig(f"simulations\\online\\plot_{title}.png")
+        #also save data to the file
+        results.to_csv(f"simulations\\online\\{title}.csv", encoding="utf-8")
+
 
 
     def draw_table(self, results: pd.DataFrame):
