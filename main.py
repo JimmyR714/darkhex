@@ -67,19 +67,23 @@ class Controller:
         self.agent_move_check(self.game.turn)
 
 
-    def new_ava_game(self, agent_1_settings: dict, agent_2_settings: dict, iterations: int):
+    def new_ava_game(self, agent_1_settings: dict, agent_2_settings: dict, iterations: int) -> int:
         """
         Create an agent vs agent game
         Prerequisite: a new game must have been created
+        Returns:
+            agent_1_wins: int - How many games agent 1 won
         """
         self.create_agent(agent_settings=agent_1_settings)
         self.create_agent(agent_settings=agent_2_settings, second=True)
-        self.simulate_ava_game(iterations)
+        return self.simulate_ava_game(iterations)
 
 
-    def simulate_ava_game(self, iterations: int = 1):
+    def simulate_ava_game(self, iterations: int = 1) -> int:
         """
         Simulates a certain number of iterations of agent vs agent games
+        Returns:
+            agent_1_wins: int - How many games agent 1 won
         """
         agent_1_wins = 0
         agent_2_wins = 0
@@ -123,6 +127,7 @@ class Controller:
             #reset game
             self.game.reset_board()
         logging.info("Agent 1 won %s games; Agent 2 won %s games", agent_1_wins, agent_2_wins)
+        return agent_1_wins
 
 
     def update_boards(self, row: int, col: int, turn: str, result: str = None) -> None:

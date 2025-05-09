@@ -3,6 +3,7 @@ Module for the training frame where we can train and simulate agents
 """
 
 import tkinter as tk
+import logging
 from functools import partial
 
 
@@ -14,26 +15,34 @@ class TrainingFrame(tk.Frame):
         super().__init__(master=master, relief=tk.RAISED, bd=2)
         #add title
         tk.Label(master=self, text="Training Frame").grid(row=0, column=0, sticky="nw")
+        #add game settings
         frm_game_settings = tk.Frame(self)
-        self.simulation_iters = tk.StringVar()
+        #add simulation iteration variable
+        self.simulation_iters = tk.StringVar(value="25")
         tk.Label(frm_game_settings, text="Simulation Iterations").grid(row=0, column=0)
         tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=0, column=1)
+        #add simulation step variable
+        self.simulation_step = tk.StringVar(value="5")
+        tk.Label(frm_game_settings, text="Iteration Step").grid(row=1, column=0)
+        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=1, column=1)
+        #add simulation option selection
         sim_options = [
             "Offline",
             "Online vs Offline",
             "Online"
         ]
-        tk.Label(frm_game_settings, text="Simulation Type").grid(row=1, column=0)
+        tk.Label(frm_game_settings, text="Simulation Type").grid(row=2, column=0)
         self.sim_type = tk.StringVar(value="Offline")
         tk.OptionMenu(
             frm_game_settings,
             self.sim_type,
             *sim_options,
             #command=partial(self.update_agent_and_game_menu, 1)
-        ).grid(row=1, column=1)
+        ).grid(row=2, column=1)
         frm_game_settings.grid(row=1, column=0, sticky="nw")
         #allow us to add an agent to list of agents to be run
         self.frm_add_agent = tk.Frame(master=self)
+        #add agent type selection
         agent_types = [
             "General",
             "Belief",
@@ -42,8 +51,6 @@ class TrainingFrame(tk.Frame):
             "From File"
         ]
         self.agent_type = tk.StringVar(value="General")
-        self.agent_settings = {}
-        self.frm_agent_settings = None
         tk.Label(master=self.frm_add_agent, text="Select Agent Type:").grid(row=0,column=0)
         tk.OptionMenu(
             self.frm_add_agent,
@@ -51,11 +58,18 @@ class TrainingFrame(tk.Frame):
             *agent_types,
             command=partial(self.update_agent_menu)
         ).grid(row=0,column=1)
+        #add agent settings depending on agent type
+        self.agent_settings = {}
+        self.frm_agent_settings = None
         self.update_agent_menu(self.agent_type.get())
+        #add agent naming
+        self.agent_name = tk.StringVar(value="Agent Name")
+        tk.Entry(self.frm_add_agent, textvariable=self.agent_name).grid(row=1,column=0)
+        #allow user to add agent to collection
         tk.Button(
             master=self.frm_add_agent, text="Add Agent",
             command=self.add_agent,
-        ).grid(row=1,column=0,sticky="nw")
+        ).grid(row=1,column=1)
         self.frm_add_agent.grid(row=2,column=0,sticky="nw")
         #show the agents we have added so far
         self.current_agents = []
@@ -90,6 +104,7 @@ class TrainingFrame(tk.Frame):
         frm_agent_info = tk.Frame(self.frm_current_agents, relief=tk.RAISED, bd=2, padx=5, pady=5)
         #fill in the frame
         agent_type = self.agent_type.get()
+        agent_name = self.agent_name.get()
         tk.Label(frm_agent_info, text=agent_type).pack()
         match agent_type:
             case "General":
@@ -130,6 +145,8 @@ class TrainingFrame(tk.Frame):
             case "From File":
                 pass
         frm_agent_info.grid(row=0, column=agent_pos, sticky="ns")
+        self.agent_settings["type"] = agent_type
+        self.agent_settings["name"] = agent_name
         self.current_agents.append(self.agent_settings.copy())
         self.agent_settings = {}
         self.update_agent_menu(agent_type)
@@ -148,9 +165,40 @@ class TrainingFrame(tk.Frame):
         """
         Runs the simulation on the current agents
         """
-        if len(self.current_agents) > 0:
-            #simulate the game on the current agents
-            pass
+        #don't run when no agents have been selected
+        if len(self.current_agents) == 0:
+            return
+        match self.sim_type.get():
+            case "Offline":
+                #get all combinations of agents
+                agent_combs = [
+                    (agent_1, agent_2)
+                    for agent_1 in self.current_agents
+                    for agent_2 in self.current_agents
+                ]
+                #simulate every combination and save results
+                results = []
+                for agent_1, agent_2 in agent_combs:
+                    agent_1_settings = agent_1
+                    agent_1_settings["colour"] = "w"
+                    agent_2_settings = agent_2
+                    agent_2_settings["colour"] = "b"
+                    iterations = self.simulation_iters.get()
+                    #run the new game in the controller
+                    agent_1_name = agent_1_settings["name"]
+                    agent_2_name = agent_2_settings["name"]
+                    logging.info("Simulating match: %s vs %s", agent_1_name, agent_2_name)
+                    wins = self.master.controller.new_ava_game(
+                        agent_1_settings, agent_2_settings, iterations
+                    )
+                    results.append({"w": agent_1_name, "b": agent_2_name, "wins": wins})
+                self.draw_table(results)
+            case "Online vs Offline":
+                #zip the online agent with the offline ones
+                pass
+            case "Online":
+                #we only have one combination
+                pass
 
 
     def update_agent_menu(self, agent_type: str):
@@ -211,7 +259,7 @@ class TrainingFrame(tk.Frame):
         """
 
 
-    def draw_table(self):
+    def draw_table(self, results: dict[str, str|int]):
         """
         Draw a table of results following a simulation involving offline agents.
         """
