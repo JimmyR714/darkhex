@@ -14,21 +14,24 @@ class TrainingFrame(tk.Frame):
         super().__init__(master=master, relief=tk.RAISED, bd=2)
         #add title
         tk.Label(master=self, text="Training Frame").grid(row=0, column=0, sticky="nw")
-        self.iters = tk.StringVar()
-        tk.Label(master=self, text="Iterations").grid(row=1, column=0, sticky="nw")
-        tk.Entry(self, textvariable=self.iters).grid(row=2, column=0, sticky="nw")
+        frm_game_settings = tk.Frame(self)
+        self.simulation_iters = tk.StringVar()
+        tk.Label(frm_game_settings, text="Simulation Iterations").grid(row=0, column=0)
+        tk.Entry(frm_game_settings, textvariable=self.simulation_iters).grid(row=0, column=1)
         sim_options = [
             "Offline",
             "Online vs Offline",
             "Online"
         ]
+        tk.Label(frm_game_settings, text="Simulation Type").grid(row=1, column=0)
         self.sim_type = tk.StringVar(value="Offline")
         tk.OptionMenu(
-            self,
+            frm_game_settings,
             self.sim_type,
             *sim_options,
             #command=partial(self.update_agent_and_game_menu, 1)
-        ).grid(row=3, column=0, sticky="nw")
+        ).grid(row=1, column=1)
+        frm_game_settings.grid(row=1, column=0, sticky="nw")
         #allow us to add an agent to list of agents to be run
         self.frm_add_agent = tk.Frame(master=self)
         agent_types = [
@@ -53,23 +56,29 @@ class TrainingFrame(tk.Frame):
             master=self.frm_add_agent, text="Add Agent",
             command=self.add_agent,
         ).grid(row=1,column=0,sticky="nw")
-        self.frm_add_agent.grid(row=4,column=0)
+        self.frm_add_agent.grid(row=2,column=0,sticky="nw")
         #show the agents we have added so far
         self.current_agents = []
-        self.frm_current_agents = tk.Frame(self, relief=tk.RAISED, bd=2)
-        self.frm_current_agents.grid(row=5, column=0)
+        self.frm_current_agents = tk.Frame(self, relief=tk.RAISED, bd=2, padx=5, pady=5)
+        self.frm_current_agents.grid(row=3, column=0,sticky="nw")
         #buttons to reset agents, or allow training for ones that don't exist
         tk.Button(
             self,
             text="Reset agents", command=self.reset_agents
-        ).grid(row=6, column=0,sticky="nw")
+        ).grid(row=4, column=0,sticky="nw")
         frm_training = tk.Frame(self)
         tk.Label(frm_training, text="Allow Training").grid(row=0, column=0)
         self.allow_training = tk.BooleanVar(value=False)
         tk.Checkbutton(frm_training, variable=self.allow_training).grid(row=0,column=1)
-        frm_training.grid(row=7,column=0)
+        tk.Label(frm_training, text="Training Iterations").grid(row=0, column=2)
+        self.training_iters = tk.StringVar(value="10")
+        tk.Entry(frm_training, textvariable=self.training_iters).grid(row=0, column=3)
+        frm_training.grid(row=5,column=0,sticky="nw")
         #button to start simulation
-        tk.Button(self, text="Start Simulation", command=self.start_simulation)
+        tk.Button(
+            self,
+            text="Start Simulation", command=self.start_simulation
+        ).grid(row=6,column=0,sticky="nw")
 
 
     def add_agent(self):
@@ -97,7 +106,10 @@ class TrainingFrame(tk.Frame):
                 ).pack()
             case "Bayesian":
                 #add parameters into frame
-                tk.Label(frm_agent_info, text=f"Width 1 = {self.agent_settings["width_1"].get()}").pack()
+                tk.Label(
+                    frm_agent_info,
+                    text=f"Width 1 = {self.agent_settings["width_1"].get()}"
+                ).pack()
                 tk.Label(
                     frm_agent_info,
                     text=f"Width 2 VC = {self.agent_settings["width_2_vc"].get()}"
@@ -110,7 +122,7 @@ class TrainingFrame(tk.Frame):
                     frm_agent_info,
                     text=f"Fake Boards = {self.agent_settings["fake_boards"].get()}"
                 ).pack()
-                if self.sim_type != "Offline":
+                if self.sim_type.get() != "Offline":
                     learning = "Online" if self.agent_settings["learning"].get() else "Offline"
                     tk.Label(frm_agent_info, text=learning).pack()
             case "RL":
@@ -127,12 +139,18 @@ class TrainingFrame(tk.Frame):
         """
         Reset the agents stored in the collection
         """
+        for widget in self.frm_current_agents.winfo_children():
+            widget.destroy()
+        self.current_agents = []
 
 
     def start_simulation(self):
         """
         Runs the simulation on the current agents
         """
+        if len(self.current_agents) > 0:
+            #simulate the game on the current agents
+            pass
 
 
     def update_agent_menu(self, agent_type: str):
