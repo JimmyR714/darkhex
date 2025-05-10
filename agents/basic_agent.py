@@ -4,7 +4,6 @@ works solely off of the rules of dark hex
 """
 from typing import Self
 from copy import deepcopy
-import math
 import logging
 from scipy.cluster.hierarchy import DisjointSet
 import agents.agent
@@ -14,25 +13,29 @@ class BasicAgent(agents.agent.Agent):
     """
     Basic agent that uses the rules of dark hex, but no advanced techniques.
     """
-    MAX_DEPTH = 3
-    MAX_BELIEFS = 20
     def __init__(self, num_cols: int, num_rows: int, settings: dict):
         """Create a basic agent"""
         super().__init__(num_cols, num_rows, settings)
+        self.max_depth = settings["depth"]
+        self.max_beliefs = settings["beliefs"]
         self.belief_state = BeliefState.fresh(
             num_cols=num_cols,
             num_rows=num_rows,
             agent_colour=settings["colour"],
-            max_depth=self.MAX_DEPTH,
-            max_beliefs=self.MAX_BELIEFS
+            max_depth=settings["depth"],
+            max_beliefs=settings["beliefs"]
         )
 
 
-    def move(self):
+    def move(self) -> tuple[int, int]:
         """
         Make a move by the agent.
         Moves are determined by the one that results in the belief state with the 
         highest probability of our success.
+        Returns:
+            (col, row): tuple[int, int]: the chosen cell to play in. 
+                col = 1 is the left column.
+                row = 1 is the top row.
         """
         return self.belief_state.optimal_move()
 
@@ -50,8 +53,8 @@ class BasicAgent(agents.agent.Agent):
             num_cols=self.num_cols,
             num_rows=self.num_rows,
             agent_colour=self.colour,
-            max_depth=self.MAX_DEPTH,
-            max_beliefs=self.MAX_BELIEFS
+            max_depth=self.max_depth,
+            max_beliefs=self.max_beliefs
         )
 
 
@@ -62,6 +65,8 @@ class Belief():
     """
     def __init__(self, board: list[list[str]], probability: float,
                  white_components: DisjointSet, black_components: DisjointSet) -> None:
+        # board is indexed from row = 0, col = 0
+        # board does not include the border
         self.board = board
         self.probability = probability
         self.white_components = white_components
@@ -101,18 +106,23 @@ class Belief():
     def update_information(self, col: int, row: int, colour: str, agent_colour: str) -> None:
         """
         Updates the board and components of this belief
+        Parameters:
+            col: int - the column to update. col=1 is the leftmost column
+            row: int - the row to update. row=1 is the top row
+            colour: str - the colour of the piece being placed
+            agent_colour: str - our colour, so we know what to include in the board
         """
         if colour == agent_colour:
             #we successfully placed our piece, and it is unseen
-            self.board[row][col] = agent_colour + "u"
-        elif colour != agent_colour and self.board[row][col] == colour + "u":
+            self.board[row-1][col-1] = agent_colour + "u"
+        elif colour != agent_colour and self.board[row-1][col-1] == colour + "u":
             #we discovered one of their pieces,
             # hence remove all beliefs where this wasn't unseen
-            self.board[row][col] = colour + "s"
+            self.board[row-1][col-1] = colour + "s"
         # update components
         logging.debug("Updating board at %s, %s", col, row)
         util.update_components(
-            cell_pos=(col+1, row+1),
+            cell_pos=(col, row),
             board=self.board,
             components=(self.white_components, self.black_components),
             colour=colour,
@@ -125,67 +135,25 @@ class Belief():
         Calculates the utility of this belief.
         White is a positive utility, black is negative.
         """
-        def component_strength(components: DisjointSet) -> float:
-            """
-            Calculates strength of the components
-            """
-            #TODO use (virtual) connected components to improve utility function
-            total = 1.0
-            #for now, just based on size of components
-            for component in components:
-                total += len(component)
-            return total
-
-
-        def seen_strength(colour: str) -> float:
-            """
-            Calculates strength of the seen elements on the board for colour
-            """
-            total = 1.0
-            for row in self.board:
-                for cell in row:
-                    if "u" in cell and colour in cell:
-                        #if they haven't seen our cell
-                        total += 3
-                    elif "s" in cell and util.swap_colour(colour) in cell:
-                        #if we have seen their cell
-                        total += 5
-                    elif "u" in cell and util.swap_colour(colour) in cell:
-                        #we haven't seen their cell
-                        total -= 3
-                    elif "s" in cell and colour in cell:
-                        #they have seen our cell
-                        total -= 5
-            return total
-
-        #start with win checks
-        win_check = util.win_check(
-            num_rows=len(self.board),
-            num_cols=len(self.board[0]),
-            white_components=self.white_components,
-            black_components=self.black_components
+        score = util.utility(
+            util_config={
+                "win": 100000,
+                #"seen": 5,
+                #"components": 3,
+                "width_2_vc": 20,
+                "width_2_semi_vc": 15,
+                "width_1": 30
+            },
+            pos_info={
+                "board": self.board,
+                "components": {
+                    "w": self.white_components,
+                    "b": self.black_components
+                }
+            }
         )
-        if win_check == "none":
-            #perform an ordinary evaluation
-            #TODO use a similar evaluation function to HEXY
-            total_utility = 0.0
-            #first include component strength
-            white_component_strength = component_strength(self.white_components)
-            black_component_strength = component_strength(self.black_components)
-            total_utility += math.tanh(
-                white_component_strength / black_component_strength
-            )
-            #then include seen strength
-            total_utility += math.tanh(
-                seen_strength("w") / seen_strength("b")
-            )
-        elif win_check == "white_win":
-            total_utility = 10000.0
-        else:
-            total_utility = -10000.0
-
         #return expected utility
-        return total_utility * self.probability
+        return score * self.probability
 
 
 class BeliefState():
@@ -216,6 +184,7 @@ class BeliefState():
         #we always believe the same spaces may be empty (or containing an unseen opponent)
         #irrespective of the list of beliefs. Hence we maintain this:
         self.placeable_cells = placeable_cells
+        #each cell is defined with col=0, row=0 as the top left placable cell
 
 
     @classmethod
@@ -246,7 +215,7 @@ class BeliefState():
         """
         logging.debug("Creating belief state from current state")
         return cls(
-            beliefs=beliefs,
+            beliefs=deepcopy(beliefs),
             agent_colour=agent_colour,
             max_depth=max_depth,
             max_beliefs=max_beliefs,
@@ -272,13 +241,13 @@ class BeliefState():
                     if cell == "wu" and self.agent_colour == "w":
                         #TODO opponent can only find one piece per turn
                         new_belief = Belief.from_belief(belief, 0.5)
-                        new_belief.update_information(x, y, "w", "b")
+                        new_belief.update_information(x+1, y+1, "w", "b")
                         new_beliefs.append(new_belief)
                         new_beliefs.append(Belief.from_belief(belief, 0.5)) # update probability
                     elif cell == "bu" and self.agent_colour == "b":
                         #they might have found our piece
                         new_belief = Belief.from_belief(belief, 0.5)
-                        new_belief.update_information(x, y, "b", "w")
+                        new_belief.update_information(x+1, y+1, "b", "w")
                         new_beliefs.append(new_belief)
                         new_beliefs.append(Belief.from_belief(belief, 0.5)) # update probability
                     else:
@@ -327,7 +296,7 @@ class BeliefState():
                 best_action = action
                 best_utility = utility_value
         #TODO bug where this returns None on a 2x1 board
-        return best_action
+        return (best_action[0]+1, best_action[1]+1)
 
 
     def min_value(self, alpha: float, beta: float, white_turn: bool) -> float:
@@ -435,7 +404,7 @@ class BeliefState():
             belief.update_information(col, row, colour, self.agent_colour)
 
         #we can no longer place a piece in this cell
-        self.placeable_cells.remove((col, row))
+        self.placeable_cells.remove((col-1, row-1))
 
         return self.agent_colour != colour
 
@@ -443,6 +412,7 @@ class BeliefState():
     def result(self, white_turn: bool, action: tuple[int, int]) -> Self:
         """
         Returns the belief state reached by applying action to each of our beliefs
+        The action here is defined with col=0, row=0 as the top left placable cell
         """
         if white_turn:
             colour = "w"
@@ -457,7 +427,7 @@ class BeliefState():
             placeable_cells=self.placeable_cells
         )
         #play the move
-        new_belief_state.update_information(col=action[0], row=action[1], colour=colour)
+        new_belief_state.update_information(col=action[0]+1, row=action[1]+1, colour=colour)
         logging.debug("Belief state created")
         return new_belief_state
 

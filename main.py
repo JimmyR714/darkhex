@@ -233,6 +233,14 @@ class Controller:
                     num_cols=num_cols, num_rows=num_rows, settings=agent_settings
                 )
             case "Basic":
+                #change settings from intvars
+                if not isinstance(agent_settings["beliefs"], int):
+                    agent_settings.update(
+                        {
+                            "depth": int(agent_settings["depth"].get()),
+                            "beliefs": int(agent_settings["beliefs"].get())
+                        }
+                    )
                 new_agent = agents.basic_agent.BasicAgent(
                     num_cols=num_cols, num_rows=num_rows, settings=agent_settings
                 )
