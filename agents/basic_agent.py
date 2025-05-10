@@ -138,11 +138,11 @@ class Belief():
         score = util.utility(
             util_config={
                 "win": 100000,
-                #"seen": 5,
-                #"components": 3,
-                "width_2_vc": 20,
-                "width_2_semi_vc": 15,
-                "width_1": 30
+                "seen": 5,
+                "components": 50,
+                "width_2_vc": 500,
+                "width_2_semi_vc": 100,
+                "width_1": 200
             },
             pos_info={
                 "board": self.board,
@@ -255,15 +255,16 @@ class BeliefState():
         #TODO bug when there are no placable cells, maybe fix by adding win condition?
         final_beliefs = []
         num_cells = len(self.placeable_cells)
-        # if a cell is empty, they might have placed their piece there
-        for belief in new_beliefs:
-            final_beliefs.append(Belief.from_belief(belief, 1.0/num_cells))
-            for cell in self.placeable_cells:
-                new_belief = Belief.from_belief(belief, 1.0/num_cells)
-                opp_colour = util.swap_colour(self.agent_colour)
-                new_belief.update_information(cell[0], cell[1], opp_colour, opp_colour)
-                final_beliefs.append(new_belief)
-        self.beliefs = final_beliefs
+        if num_cells > 0:
+            # if a cell is empty, they might have placed their piece there
+            for belief in new_beliefs:
+                final_beliefs.append(Belief.from_belief(belief, 1.0/num_cells))
+                for cell in self.placeable_cells:
+                    new_belief = Belief.from_belief(belief, 1.0/num_cells)
+                    opp_colour = util.swap_colour(self.agent_colour)
+                    new_belief.update_information(cell[0], cell[1], opp_colour, opp_colour)
+                    final_beliefs.append(new_belief)
+            self.beliefs = final_beliefs
 
         #reduce the number of beliefs
         self.reduce_beliefs()
@@ -313,7 +314,8 @@ class BeliefState():
         # check for termination
         if self.terminal_test():
             logging.debug("Terminal test was successful")
-            return self.utility()
+            utility = self.utility()
+            return utility
         # search for min value
         current_min_value = 1000000000.0
         # check each possible action

@@ -123,7 +123,7 @@ def win_check(num_rows: int, num_cols: int, white_components: DisjointSet,
         "none" if nobody has won
     """
     #check if the two black rows are connected or the two white columns are connected
-    logging.info("Performing a win check")
+    logging.debug("Performing a win check")
     if black_components.connected((1, 0), (1, num_rows+1)):
         return "black_win"
     elif white_components.connected((0, 1), (num_cols+1, 1)):
@@ -205,8 +205,8 @@ def utility(util_config: dict, pos_info: dict) -> float:
         Parameters:
             cell: tuple[int, int] - The cell that we are checking the existence of.
         """
-        top_left = cell[0] >= 0 and cell[1] >= 0
-        bottom_right = cell[0] < num_cols and cell[1] < num_rows
+        top_left = cell[0] > 0 and cell[1] > 0
+        bottom_right = cell[0] <= num_cols and cell[1] <= num_rows
         return top_left and bottom_right
 
 
@@ -226,7 +226,7 @@ def utility(util_config: dict, pos_info: dict) -> float:
         # for each cell valid in this condition
         for cell in cells:
             #check if the cell is real and the correct colour
-            if cell_exists(cell) and board[cell[0]][cell[1]] == colour:
+            if cell_exists(cell) and colour in border_board[cell[0]][cell[1]]:
                 # add the cell to the function
                 cond_weighting += util_config[cond]
         return cond_weighting
@@ -235,6 +235,7 @@ def utility(util_config: dict, pos_info: dict) -> float:
     #get the board from the config
     assert "board" in pos_info
     board = pos_info["board"]
+    border_board = add_borders(board)
     num_rows = len(board)
     num_cols = len(board[0])
 
@@ -300,8 +301,8 @@ def utility(util_config: dict, pos_info: dict) -> float:
             ]})
             conditions.append("width_2_semi_vc")
         #loop through valid cells, adding correct amount
-        for row in range(num_rows):
-            for col in range(num_cols):
+        for row in range(1, num_rows+1):
+            for col in range(1, num_cols+1):
                 for cond in conditions:
                     total_utility += add_cond(cond, valid_cells[cond](col, row), "w")
                     total_utility -= add_cond(cond, valid_cells[cond](col, row), "b")

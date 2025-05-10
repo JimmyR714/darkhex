@@ -55,7 +55,7 @@ class Controller:
         
         Prerequisite: a new game must have been created
         """
-        if self.agent is not None:
+        if self.agent is not None and self.learning:
             #reset the agent
             #TODO we cannot change agent types while running now
             self.agent.reset(self.referee_board)
